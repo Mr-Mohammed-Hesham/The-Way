@@ -1,0 +1,6 @@
+{
+  "name": "The Way Center",
+  "description": "The Way Training Center - Your Way To Success - نظام شامل لإدارة المركز التعليمي، شؤون الطلاب، الحصص، الحضور بكود الطالب الذكي، القاعات، والعقود والمدفوعات ومتابعة المتغيرات اللحظية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
