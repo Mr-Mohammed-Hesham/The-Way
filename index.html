@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <title>The Way Center</title>
+    <meta name="description" content="The Way Training Center - Your Way To Success - نظام شامل لإدارة المركز التعليمي، شؤون الطلاب، الحصص، الحضور بكود الطالب الذكي، القاعات، والعقود والمدفوعات ومتابعة المتغيرات اللحظية." />
+    <meta property="og:title" content="The Way Center" />
+    <meta property="og:description" content="The Way Training Center - Your Way To Success - نظام شامل لإدارة المركز التعليمي، شؤون الطلاب، الحصص، الحضور بكود الطالب الذكي، القاعات، والعقود والمدفوعات ومتابعة المتغيرات اللحظية." />
+    
+    <!-- Authentic Favicon & Touch Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme & Mobile App Styling -->
+    <meta name="theme-color" content="#004D99" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="The Way" />
+
+    <!-- Inline script to capture PWA installation prompt immediately (4U Architecture) -->
+    <script>
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredPrompt = e;
+        window.dispatchEvent(new CustomEvent('theway:pwa-ready', { detail: e }));
+        if (window.onBeforeInstallPrompt) {
+          window.onBeforeInstallPrompt(e);
+        }
+      });
+      window.addEventListener('appinstalled', () => {
+        window.deferredPrompt = null;
+        window.dispatchEvent(new CustomEvent('theway:pwa-installed'));
+      });
+      // Register Service Worker immediately for PWA compliance
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          const base = window.location.pathname.endsWith('/')
+            ? window.location.pathname
+            : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+          navigator.serviceWorker.register(base + 'sw.js').then((reg) => {
+            console.log('The Way ServiceWorker registered:', reg.scope);
+          }).catch((err) => {
+            console.error('ServiceWorker registration failed:', err);
+          });
+        });
+      }
+    </script>
+
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      @media print {
+        .no-print {
+          display: none !important;
+        }
+        .print-only {
+          display: block !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body class="bg-slate-50 dark:bg-[#090D16] text-slate-900 dark:text-slate-100 antialiased selection:bg-blue-600 selection:text-white min-h-screen transition-colors duration-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

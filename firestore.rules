@@ -1,0 +1,200 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Catch-all Deny (Pillar 1: Master Gate)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Bootstrap user email as admin or admin document lookup
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'mohammedhesham872@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation helper for Student entity
+    function isValidStudent(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.code is string && data.code.size() <= 64 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.grade is string && data.grade.size() <= 64 &&
+             data.status is string && data.status.size() <= 32 &&
+             data.registrationDate is string && data.registrationDate.size() <= 64;
+    }
+
+    // Validation helper for Teacher entity
+    function isValidTeacher(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.code is string && data.code.size() <= 64 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.status is string && data.status.size() <= 32;
+    }
+
+    // Validation helper for Subject entity
+    function isValidSubject(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.code is string && data.code.size() <= 64 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.defaultSessionPrice is number;
+    }
+
+    // Validation helper for Room entity
+    function isValidRoom(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.capacity is number;
+    }
+
+    // Validation helper for Session entity
+    function isValidSession(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.teacherId is string && data.teacherId.size() <= 128 &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.roomId is string && data.roomId.size() <= 128 &&
+             data.date is string && data.date.size() <= 32 &&
+             data.startTime is string && data.startTime.size() <= 16 &&
+             data.endTime is string && data.endTime.size() <= 16 &&
+             data.status is string && data.status.size() <= 32;
+    }
+
+    // Validation helper for AttendanceRecord entity
+    function isValidAttendance(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.sessionId is string && data.sessionId.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.date is string && data.date.size() <= 32 &&
+             data.status is string && data.status.size() <= 32;
+    }
+
+    // Validation helper for Contract entity
+    function isValidContract(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.contractNumber is string && data.contractNumber.size() <= 64 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.totalSessions is number &&
+             data.packagePrice is number &&
+             data.status is string && data.status.size() <= 32;
+    }
+
+    // Validation helper for Payment entity
+    function isValidPayment(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.receiptNumber is string && data.receiptNumber.size() <= 64 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.amount is number &&
+             data.paymentMethod is string && data.paymentMethod.size() <= 32 &&
+             data.date is string && data.date.size() <= 32;
+    }
+
+    // Validation helper for CenterSettings entity
+    function isValidSettings(data) {
+      return data.id is string && data.id.size() <= 64 &&
+             data.centerName is string && data.centerName.size() > 0 && data.centerName.size() <= 128 &&
+             data.currency is string && data.currency.size() <= 16;
+    }
+
+    // --- Collections ---
+
+    // Students Collection
+    match /students/{studentId} {
+      allow get, list: if true;
+      allow create: if isValidId(studentId) && isValidStudent(incoming());
+      allow update: if isValidId(studentId) && isValidStudent(incoming());
+      allow delete: if isValidId(studentId);
+    }
+
+    // Teachers Collection
+    match /teachers/{teacherId} {
+      allow get, list: if true;
+      allow create: if isValidId(teacherId) && isValidTeacher(incoming());
+      allow update: if isValidId(teacherId) && isValidTeacher(incoming());
+      allow delete: if isValidId(teacherId);
+    }
+
+    // Subjects Collection
+    match /subjects/{subjectId} {
+      allow get, list: if true;
+      allow create: if isValidId(subjectId) && isValidSubject(incoming());
+      allow update: if isValidId(subjectId) && isValidSubject(incoming());
+      allow delete: if isValidId(subjectId);
+    }
+
+    // Rooms Collection
+    match /rooms/{roomId} {
+      allow get, list: if true;
+      allow create: if isValidId(roomId) && isValidRoom(incoming());
+      allow update: if isValidId(roomId) && isValidRoom(incoming());
+      allow delete: if isValidId(roomId);
+    }
+
+    // Sessions Collection
+    match /sessions/{sessionId} {
+      allow get, list: if true;
+      allow create: if isValidId(sessionId) && isValidSession(incoming());
+      allow update: if isValidId(sessionId) && isValidSession(incoming());
+      allow delete: if isValidId(sessionId);
+    }
+
+    // Attendance Collection
+    match /attendance/{attendanceId} {
+      allow get, list: if true;
+      allow create: if isValidId(attendanceId) && isValidAttendance(incoming());
+      allow update: if isValidId(attendanceId) && isValidAttendance(incoming());
+      allow delete: if isValidId(attendanceId);
+    }
+
+    // Contracts Collection
+    match /contracts/{contractId} {
+      allow get, list: if true;
+      allow create: if isValidId(contractId) && isValidContract(incoming());
+      allow update: if isValidId(contractId) && isValidContract(incoming());
+      allow delete: if isValidId(contractId);
+    }
+
+    // Payments Collection
+    match /payments/{paymentId} {
+      allow get, list: if true;
+      allow create: if isValidId(paymentId) && isValidPayment(incoming());
+      allow update: if isValidId(paymentId) && isValidPayment(incoming());
+      allow delete: if isValidId(paymentId);
+    }
+
+    // Settings Collection
+    match /settings/{settingId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(settingId) && isValidSettings(incoming());
+      allow delete: if false;
+    }
+
+    // Admins Collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Test Connection collection for health checks
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

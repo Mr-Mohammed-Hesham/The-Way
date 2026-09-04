@@ -1,0 +1,189 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Student registered in the training center",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "grade": { "type": "string", "maxLength": 64 },
+        "track": { "type": "string", "maxLength": 64 },
+        "school": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["active", "inactive", "suspended", "graduated", "archived"] },
+        "registrationDate": { "type": "string", "maxLength": 64 },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "code", "name", "grade", "status", "registrationDate"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher or instructor at the center",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 128 },
+        "rateType": { "type": "string", "enum": ["percentage", "hourly", "fixed_per_student"] },
+        "defaultRate": { "type": "number" },
+        "status": { "type": "string", "maxLength": 32 },
+        "color": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["id", "code", "name", "phone", "status"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Academic course or subject",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 64 },
+        "defaultSessionPrice": { "type": "number" }
+      },
+      "required": ["id", "code", "name", "defaultSessionPrice"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Classroom or lab in the center",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "capacity": { "type": "number" },
+        "type": { "type": "string", "maxLength": 64 },
+        "isAvailable": { "type": "boolean" }
+      },
+      "required": ["id", "name", "capacity"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Classroom session or lecture",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "sessionCode": { "type": "string", "maxLength": 64 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "subjectId": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 32 },
+        "startTime": { "type": "string", "maxLength": 16 },
+        "endTime": { "type": "string", "maxLength": 16 },
+        "durationMinutes": { "type": "number" },
+        "status": { "type": "string", "maxLength": 32 },
+        "type": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["id", "teacherId", "subjectId", "roomId", "date", "startTime", "endTime", "status"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Student attendance log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "sessionId": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "subjectId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "maxLength": 32 },
+        "recordedAt": { "type": "string", "maxLength": 64 },
+        "recordedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "sessionId", "studentId", "date", "status"]
+    },
+    "Contract": {
+      "title": "Contract",
+      "description": "Student subscription contract",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "contractNumber": { "type": "string", "maxLength": 64 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "subjectId": { "type": "string", "maxLength": 128 },
+        "totalSessions": { "type": "number" },
+        "usedSessions": { "type": "number" },
+        "packagePrice": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "status": { "type": "string", "maxLength": 32 },
+        "startDate": { "type": "string", "maxLength": 32 },
+        "endDate": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["id", "contractNumber", "studentId", "totalSessions", "packagePrice", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Student fee receipt payment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "receiptNumber": { "type": "string", "maxLength": 64 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 32 },
+        "date": { "type": "string", "maxLength": 32 },
+        "receivedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "receiptNumber", "studentId", "amount", "paymentMethod", "date"]
+    },
+    "CenterSettings": {
+      "title": "CenterSettings",
+      "description": "Global settings for the training center",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "centerName": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "currency": { "type": "string", "maxLength": 16 },
+        "taxNumber": { "type": "string", "maxLength": 64 },
+        "address": { "type": "string", "maxLength": 256 }
+      },
+      "required": ["id", "centerName", "currency"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Students registered in the center"
+    },
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Center teachers and instructors"
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Subjects offered at the center"
+    },
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Study rooms and halls"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Class schedules and sessions"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance tracking records"
+    },
+    "/contracts/{contractId}": {
+      "schema": "Contract",
+      "description": "Student packages and contracts"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Financial receipts and payments"
+    },
+    "/settings/{settingId}": {
+      "schema": "CenterSettings",
+      "description": "General center configuration"
+    }
+  }
+}
