@@ -6,8 +6,16 @@ import {
   onSnapshot,
   getDocs
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, firebaseConfig } from './firebase';
+
+import {
+  db,
+  handleFirestoreError,
+  OperationType,
+  firebaseConfig
+} from './firebase';
+
 import { StorageService } from './storageService';
+
 import {
   Student,
   Teacher,
@@ -35,67 +43,123 @@ export interface CloudSyncStatus {
 
 class FirebaseSyncService {
   private static instance: FirebaseSyncService;
+
   private isInitialized = false;
-  private statusListeners: Set<(status: CloudSyncStatus) => void> = new Set();
+
+  private statusListeners: Set<
+    (status: CloudSyncStatus) => void
+  > = new Set();
 
   private status: CloudSyncStatus = {
     isConnected: true,
     isSyncing: false,
     lastSyncedAt: null,
     projectId: firebaseConfig.projectId,
-    databaseId: firebaseConfig.firestoreDatabaseId || '(default)',
+    databaseId:
+      firebaseConfig.firestoreDatabaseId ||
+      '(default)',
     error: null
   };
 
   public static getInstance(): FirebaseSyncService {
     if (!FirebaseSyncService.instance) {
-      FirebaseSyncService.instance = new FirebaseSyncService();
+      FirebaseSyncService.instance =
+        new FirebaseSyncService();
     }
+
     return FirebaseSyncService.instance;
   }
 
   public getStatus(): CloudSyncStatus {
-    return { ...this.status };
+    return {
+      ...this.status
+    };
   }
 
-  public onStatusChange(listener: (status: CloudSyncStatus) => void): () => void {
+  public onStatusChange(
+    listener: (status: CloudSyncStatus) => void
+  ): () => void {
     this.statusListeners.add(listener);
+
     listener(this.getStatus());
-    return () => this.statusListeners.delete(listener);
+
+    return () =>
+      this.statusListeners.delete(listener);
   }
 
-  private updateStatus(patch: Partial<CloudSyncStatus>) {
-    this.status = { ...this.status, ...patch };
-    this.statusListeners.forEach(fn => fn(this.getStatus()));
+  private updateStatus(
+    patch: Partial<CloudSyncStatus>
+  ) {
+    this.status = {
+      ...this.status,
+      ...patch
+    };
+
+    this.statusListeners.forEach(listener =>
+      listener(this.getStatus())
+    );
   }
 
   /**
-   * Initializes real-time Firestore listeners and auto-seeds initial data to cloud if empty.
+   * Initializes Firestore real-time synchronization.
    */
   public async initSync(): Promise<void> {
-    if (this.isInitialized) return;
-    this.isInitialized = true;
-    this.updateStatus({ isSyncing: true });
+    if (this.isInitialized) {
+      return;
+    }
 
-    const storage = StorageService.getInstance();
+    this.isInitialized = true;
+
+    this.updateStatus({
+      isSyncing: true,
+      error: null
+    });
+
+    const storage =
+      StorageService.getInstance();
 
     try {
-      // 1. Check if students collection in Firestore already has data
+      /*
+       * Check whether Firestore already contains
+       * training-center data.
+       *
+       * We keep the existing bootstrap behavior:
+       * if students is completely empty, the current
+       * local data is seeded to Firestore.
+       */
       const studentsPath = 'students';
+
       let existingStudentsSnap;
+
       try {
-        existingStudentsSnap = await getDocs(collection(db, studentsPath));
+        existingStudentsSnap =
+          await getDocs(
+            collection(db, studentsPath)
+          );
       } catch (err) {
-        handleFirestoreError(err, OperationType.LIST, studentsPath);
+        handleFirestoreError(
+          err,
+          OperationType.LIST,
+          studentsPath
+        );
+
+        throw err;
       }
 
-      // If cloud has zero students, seed from local storage to Firestore
-      if (existingStudentsSnap && existingStudentsSnap.empty) {
-        console.info('Seeding initial training center data to Firebase Firestore...');
+      if (
+        existingStudentsSnap &&
+        existingStudentsSnap.empty
+      ) {
+        console.info(
+          'Seeding initial training center data to Firebase Firestore...'
+        );
+
         await this.seedAllToFirestore(storage);
       }
 
-      // 2. Setup real-time listeners for all core collections
+      /*
+       * Start real-time listeners.
+       */
       this.attachCollectionListeners(storage);
 
       this.updateStatus({
@@ -105,234 +169,916 @@ class FirebaseSyncService {
         error: null
       });
     } catch (err) {
-      console.error('Failed to initialize Firebase sync:', err);
+      console.error(
+        'Failed to initialize Firebase sync:',
+        err
+      );
+
       this.updateStatus({
+        isConnected: false,
         isSyncing: false,
-        error: err instanceof Error ? err.message : 'Unknown sync error'
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Unknown sync error'
       });
     }
   }
 
   /**
-   * Listen to remote updates from Firestore
+   * Attach real-time Firestore listeners
+   * for all application collections.
    */
-  private attachCollectionListeners(storage: StorageService) {
-    // Listen to Students
+  private attachCollectionListeners(
+    storage: StorageService
+  ) {
+    /*
+     * STUDENTS
+     */
     const studentsPath = 'students';
+
     onSnapshot(
       collection(db, studentsPath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remoteStudents = snapshot.docs.map(d => d.data() as Student);
-          storage.mergeRemoteStudents(remoteStudents);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remoteStudents =
+          snapshot.docs.map(
+            document =>
+              document.data() as Student
+          );
+
+        if (remoteStudents.length > 0) {
+          storage.mergeRemoteStudents(
+            remoteStudents
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, studentsPath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          studentsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
 
-    // Listen to Teachers
+    /*
+     * TEACHERS
+     */
     const teachersPath = 'teachers';
+
     onSnapshot(
       collection(db, teachersPath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remoteTeachers = snapshot.docs.map(d => d.data() as Teacher);
-          storage.mergeRemoteTeachers(remoteTeachers);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remoteTeachers =
+          snapshot.docs.map(
+            document =>
+              document.data() as Teacher
+          );
+
+        if (remoteTeachers.length > 0) {
+          storage.mergeRemoteTeachers(
+            remoteTeachers
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, teachersPath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          teachersPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
 
-    // Listen to Subjects
+    /*
+     * SUBJECTS
+     */
     const subjectsPath = 'subjects';
+
     onSnapshot(
       collection(db, subjectsPath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remoteSubjects = snapshot.docs.map(d => d.data() as Subject);
-          storage.mergeRemoteSubjects(remoteSubjects);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remoteSubjects =
+          snapshot.docs.map(
+            document =>
+              document.data() as Subject
+          );
+
+        if (remoteSubjects.length > 0) {
+          storage.mergeRemoteSubjects(
+            remoteSubjects
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, subjectsPath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          subjectsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
 
-    // Listen to Rooms
+    /*
+     * ROOMS
+     */
     const roomsPath = 'rooms';
+
     onSnapshot(
       collection(db, roomsPath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remoteRooms = snapshot.docs.map(d => d.data() as Room);
-          storage.mergeRemoteRooms(remoteRooms);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remoteRooms =
+          snapshot.docs.map(
+            document =>
+              document.data() as Room
+          );
+
+        if (remoteRooms.length > 0) {
+          storage.mergeRemoteRooms(
+            remoteRooms
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, roomsPath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          roomsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
 
-    // Listen to Sessions
-    const sessionsPath = 'sessions';
+    /*
+     * ASSIGNMENTS
+     */
+    const assignmentsPath = 'assignments';
+
     onSnapshot(
-      collection(db, sessionsPath),
+      collection(db, assignmentsPath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remoteSessions = snapshot.docs.map(d => d.data() as Session);
-          storage.mergeRemoteSessions(remoteSessions);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remoteAssignments =
+          snapshot.docs.map(
+            document =>
+              document.data() as TeacherAssignment
+          );
+
+        if (remoteAssignments.length > 0) {
+          storage.mergeRemoteAssignments(
+            remoteAssignments
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, sessionsPath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          assignmentsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
 
-    // Listen to Contracts
+    /*
+     * CONTRACTS
+     */
     const contractsPath = 'contracts';
+
     onSnapshot(
       collection(db, contractsPath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remoteContracts = snapshot.docs.map(d => d.data() as Contract);
-          storage.mergeRemoteContracts(remoteContracts);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remoteContracts =
+          snapshot.docs.map(
+            document =>
+              document.data() as Contract
+          );
+
+        if (remoteContracts.length > 0) {
+          storage.mergeRemoteContracts(
+            remoteContracts
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, contractsPath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          contractsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
 
-    // Listen to Attendance
+    /*
+     * SESSIONS
+     */
+    const sessionsPath = 'sessions';
+
+    onSnapshot(
+      collection(db, sessionsPath),
+      snapshot => {
+        const remoteSessions =
+          snapshot.docs.map(
+            document =>
+              document.data() as Session
+          );
+
+        if (remoteSessions.length > 0) {
+          storage.mergeRemoteSessions(
+            remoteSessions
+          );
+        }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
+      },
+      error => {
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          sessionsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
+      }
+    );
+
+    /*
+     * ATTENDANCE
+     */
     const attendancePath = 'attendance';
+
     onSnapshot(
       collection(db, attendancePath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remoteAttendance = snapshot.docs.map(d => d.data() as AttendanceRecord);
-          storage.mergeRemoteAttendance(remoteAttendance);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remoteAttendance =
+          snapshot.docs.map(
+            document =>
+              document.data() as AttendanceRecord
+          );
+
+        if (remoteAttendance.length > 0) {
+          storage.mergeRemoteAttendance(
+            remoteAttendance
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, attendancePath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          attendancePath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
 
-    // Listen to Payments
+    /*
+     * PAYMENTS
+     */
     const paymentsPath = 'payments';
+
     onSnapshot(
       collection(db, paymentsPath),
       snapshot => {
-        if (!snapshot.empty) {
-          const remotePayments = snapshot.docs.map(d => d.data() as Payment);
-          storage.mergeRemotePayments(remotePayments);
-          this.updateStatus({ lastSyncedAt: new Date() });
+        const remotePayments =
+          snapshot.docs.map(
+            document =>
+              document.data() as Payment
+          );
+
+        if (remotePayments.length > 0) {
+          storage.mergeRemotePayments(
+            remotePayments
+          );
         }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
       },
       error => {
-        handleFirestoreError(error, OperationType.LIST, paymentsPath);
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          paymentsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
+      }
+    );
+
+    /*
+     * TEACHER PAYMENTS
+     */
+    const teacherPaymentsPath =
+      'teacherPayments';
+
+    onSnapshot(
+      collection(
+        db,
+        teacherPaymentsPath
+      ),
+      snapshot => {
+        const remoteTeacherPayments =
+          snapshot.docs.map(
+            document =>
+              document.data() as TeacherPayment
+          );
+
+        if (
+          remoteTeacherPayments.length > 0
+        ) {
+          storage.mergeRemoteTeacherPayments(
+            remoteTeacherPayments
+          );
+        }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
+      },
+      error => {
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          teacherPaymentsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
+      }
+    );
+
+    /*
+     * NOTIFICATIONS
+     */
+    const notificationsPath =
+      'notifications';
+
+    onSnapshot(
+      collection(
+        db,
+        notificationsPath
+      ),
+      snapshot => {
+        const remoteNotifications =
+          snapshot.docs.map(
+            document =>
+              document.data() as NotificationItem
+          );
+
+        if (
+          remoteNotifications.length > 0
+        ) {
+          storage.mergeRemoteNotifications(
+            remoteNotifications
+          );
+        }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
+      },
+      error => {
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          notificationsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
+      }
+    );
+
+    /*
+     * AUDIT LOGS
+     */
+    const auditLogsPath = 'auditLogs';
+
+    onSnapshot(
+      collection(db, auditLogsPath),
+      snapshot => {
+        const remoteAuditLogs =
+          snapshot.docs.map(
+            document =>
+              document.data() as AuditLogItem
+          );
+
+        if (remoteAuditLogs.length > 0) {
+          storage.mergeRemoteAuditLogs(
+            remoteAuditLogs
+          );
+        }
+
+        this.updateStatus({
+          isConnected: true,
+          lastSyncedAt: new Date(),
+          error: null
+        });
+      },
+      error => {
+        handleFirestoreError(
+          error,
+          OperationType.LIST,
+          auditLogsPath
+        );
+
+        this.updateStatus({
+          isConnected: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        });
       }
     );
   }
 
   /**
-   * Save or update an item to Firestore
+   * Save one document to Firestore.
    */
-  public async saveDocument<T extends { id: string }>(collectionName: string, item: T): Promise<void> {
-    const docPath = `${collectionName}/${item.id}`;
+  public async saveDocument<
+    T extends { id: string }
+  >(
+    collectionName: string,
+    item: T
+  ): Promise<void> {
+    const docPath =
+      `${collectionName}/${item.id}`;
+
     try {
-      this.updateStatus({ isSyncing: true });
-      await setDoc(doc(db, collectionName, item.id), item, { merge: true });
-      this.updateStatus({ isSyncing: false, lastSyncedAt: new Date(), error: null });
+      this.updateStatus({
+        isSyncing: true
+      });
+
+      await setDoc(
+        doc(
+          db,
+          collectionName,
+          item.id
+        ),
+        item,
+        {
+          merge: true
+        }
+      );
+
+      this.updateStatus({
+        isConnected: true,
+        isSyncing: false,
+        lastSyncedAt: new Date(),
+        error: null
+      });
     } catch (err) {
-      this.updateStatus({ isSyncing: false, error: err instanceof Error ? err.message : String(err) });
-      handleFirestoreError(err, OperationType.WRITE, docPath);
+      this.updateStatus({
+        isSyncing: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : String(err)
+      });
+
+      handleFirestoreError(
+        err,
+        OperationType.WRITE,
+        docPath
+      );
     }
   }
 
   /**
-   * Delete an item from Firestore
+   * Delete one document from Firestore.
    */
-  public async deleteDocument(collectionName: string, id: string): Promise<void> {
-    const docPath = `${collectionName}/${id}`;
+  public async deleteDocument(
+    collectionName: string,
+    id: string
+  ): Promise<void> {
+    const docPath =
+      `${collectionName}/${id}`;
+
     try {
-      this.updateStatus({ isSyncing: true });
-      await deleteDoc(doc(db, collectionName, id));
-      this.updateStatus({ isSyncing: false, lastSyncedAt: new Date(), error: null });
+      this.updateStatus({
+        isSyncing: true
+      });
+
+      await deleteDoc(
+        doc(
+          db,
+          collectionName,
+          id
+        )
+      );
+
+      this.updateStatus({
+        isConnected: true,
+        isSyncing: false,
+        lastSyncedAt: new Date(),
+        error: null
+      });
     } catch (err) {
-      this.updateStatus({ isSyncing: false, error: err instanceof Error ? err.message : String(err) });
-      handleFirestoreError(err, OperationType.DELETE, docPath);
+      this.updateStatus({
+        isSyncing: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : String(err)
+      });
+
+      handleFirestoreError(
+        err,
+        OperationType.DELETE,
+        docPath
+      );
     }
   }
 
   /**
-   * Seed local data to Firestore
+   * Seed all local application data
+   * into Firestore.
    */
-  public async seedAllToFirestore(storage: StorageService): Promise<void> {
-    this.updateStatus({ isSyncing: true });
+  public async seedAllToFirestore(
+    storage: StorageService
+  ): Promise<void> {
+    this.updateStatus({
+      isSyncing: true
+    });
+
     try {
-      // 1. Settings
-      const settings = storage.getSettings();
-      await setDoc(doc(db, 'settings', 'center_config'), settings);
+      /*
+       * SETTINGS
+       */
+      const settings =
+        storage.getSettings();
 
-      // 2. Students
-      for (const s of storage.getStudents()) {
-        await setDoc(doc(db, 'students', s.id), s);
+      await setDoc(
+        doc(
+          db,
+          'settings',
+          'center_config'
+        ),
+        {
+          ...settings,
+          id: 'center_config'
+        }
+      );
+
+      /*
+       * STUDENTS
+       */
+      for (
+        const student
+        of storage.getStudents()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'students',
+            student.id
+          ),
+          student
+        );
       }
 
-      // 3. Teachers
-      for (const t of storage.getTeachers()) {
-        await setDoc(doc(db, 'teachers', t.id), t);
+      /*
+       * TEACHERS
+       */
+      for (
+        const teacher
+        of storage.getTeachers()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'teachers',
+            teacher.id
+          ),
+          teacher
+        );
       }
 
-      // 4. Subjects
-      for (const sub of storage.getSubjects()) {
-        await setDoc(doc(db, 'subjects', sub.id), sub);
+      /*
+       * SUBJECTS
+       */
+      for (
+        const subject
+        of storage.getSubjects()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'subjects',
+            subject.id
+          ),
+          subject
+        );
       }
 
-      // 5. Rooms
-      for (const r of storage.getRooms()) {
-        await setDoc(doc(db, 'rooms', r.id), r);
+      /*
+       * ROOMS
+       */
+      for (
+        const room
+        of storage.getRooms()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'rooms',
+            room.id
+          ),
+          room
+        );
       }
 
-      // 6. Contracts
-      for (const c of storage.getContracts()) {
-        await setDoc(doc(db, 'contracts', c.id), c);
+      /*
+       * ASSIGNMENTS
+       */
+      for (
+        const assignment
+        of storage.getAssignments()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'assignments',
+            assignment.id
+          ),
+          assignment
+        );
       }
 
-      // 7. Sessions
-      for (const sess of storage.getSessions()) {
-        await setDoc(doc(db, 'sessions', sess.id), sess);
+      /*
+       * CONTRACTS
+       */
+      for (
+        const contract
+        of storage.getContracts()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'contracts',
+            contract.id
+          ),
+          contract
+        );
       }
 
-      // 8. Attendance
-      for (const a of storage.getAttendance()) {
-        await setDoc(doc(db, 'attendance', a.id), a);
+      /*
+       * SESSIONS
+       */
+      for (
+        const session
+        of storage.getSessions()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'sessions',
+            session.id
+          ),
+          session
+        );
       }
 
-      // 9. Payments
-      for (const p of storage.getPayments()) {
-        await setDoc(doc(db, 'payments', p.id), p);
+      /*
+       * ATTENDANCE
+       */
+      for (
+        const attendance
+        of storage.getAttendance()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'attendance',
+            attendance.id
+          ),
+          attendance
+        );
       }
 
-      this.updateStatus({ isSyncing: false, lastSyncedAt: new Date() });
-      console.info('Successfully synced all datasets to Firestore cloud!');
+      /*
+       * PAYMENTS
+       */
+      for (
+        const payment
+        of storage.getPayments()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'payments',
+            payment.id
+          ),
+          payment
+        );
+      }
+
+      /*
+       * TEACHER PAYMENTS
+       */
+      for (
+        const teacherPayment
+        of storage.getTeacherPayments()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'teacherPayments',
+            teacherPayment.id
+          ),
+          teacherPayment
+        );
+      }
+
+      /*
+       * NOTIFICATIONS
+       */
+      for (
+        const notification
+        of storage.getNotifications()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'notifications',
+            notification.id
+          ),
+          notification
+        );
+      }
+
+      /*
+       * AUDIT LOGS
+       */
+      for (
+        const auditLog
+        of storage.getAuditLogs()
+      ) {
+        await setDoc(
+          doc(
+            db,
+            'auditLogs',
+            auditLog.id
+          ),
+          auditLog
+        );
+      }
+
+      this.updateStatus({
+        isConnected: true,
+        isSyncing: false,
+        lastSyncedAt: new Date(),
+        error: null
+      });
+
+      console.info(
+        'Successfully synced all datasets to Firestore cloud!'
+      );
     } catch (err) {
-      console.warn('Initial seeding encountered an error:', err);
-      this.updateStatus({ isSyncing: false });
+      console.warn(
+        'Initial seeding encountered an error:',
+        err
+      );
+
+      this.updateStatus({
+        isSyncing: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : String(err)
+      });
     }
   }
 }
 
-export const firebaseSync = FirebaseSyncService.getInstance();
+export const firebaseSync =
+  FirebaseSyncService.getInstance();

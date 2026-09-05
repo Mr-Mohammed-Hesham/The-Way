@@ -15,30 +15,43 @@ import { InstallAppButton } from '../common/InstallAppPrompt';
 export const LoginView: React.FC = () => {
   const { login } = useApp();
 
-  const [identifier, setIdentifier] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError(null);
 
-    if (!identifier.trim()) {
-      setError('يرجى إدخال اسم المستخدم (Username) أو البريد الإلكتروني');
-      return;
+  if (!username.trim()) {
+    setError('يرجى إدخال اسم المستخدم');
+    return;
+  }
+
+  if (!password) {
+    setError('يرجى إدخال كلمة المرور');
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const success = await login(
+      username.trim(),
+      password
+    );
+
+    if (!success) {
+      setError(
+        'بيانات الدخول غير صحيحة. تأكد من اسم المستخدم وكلمة المرور.'
+      );
     }
-
-    setIsLoading(true);
-    setTimeout(() => {
-      const success = login(identifier.trim(), password);
-      setIsLoading(false);
-      if (!success) {
-        setError('بيانات الدخول غير صحيحة. تأكد من اسم المستخدم وكلمة المرور.');
-      }
-    }, 250);
-  };
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div
@@ -94,12 +107,12 @@ export const LoginView: React.FC = () => {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-[#0070CE]" />
-                  <span>اسم المستخدم (Username) أو البريد:</span>
+                  <span>اسم المستخدم:</span>
                 </label>
                 <input
                   type="text"
-                  value={identifier}
-                  onChange={e => setIdentifier(e.target.value)}
+                 value={username}
+onChange={e => setUsername(e.target.value)}
                   placeholder="admin"
                   className="w-full px-4 py-3 rounded-2xl bg-[#F8FAFD] border border-slate-200 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-[#0070CE] transition-all text-left font-mono"
                   required

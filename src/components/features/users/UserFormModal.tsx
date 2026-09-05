@@ -212,12 +212,12 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     const selectedMeta = departmentMeta[department];
-    const generatedEmail = email.trim() || `${username.trim().toLowerCase()}@theway.com`;
+   const generatedEmail = `${username.trim().toLowerCase()}@theway.local`;
     const numericSalary = salary ? parseFloat(salary) : 0;
 
     if (userToEdit) {
@@ -245,24 +245,27 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         message: `تم تحديث بيانات وصلاحيات ${name.trim()} (${customPermissions.length} قسم مصرح)`
       });
     } else {
-      addUser({
-        name: name.trim(),
-        username: username.trim().toLowerCase(),
-        password: password.trim(),
-        email: generatedEmail,
-        phone: phone.trim(),
-        nationalId: nationalId.trim(),
-        salary: numericSalary,
-        salaryType,
-        joinedDate,
-        notes: notes.trim(),
-        department,
-        role: selectedMeta.role,
-        departmentDescription: selectedMeta.desc,
-        teacherId: department === 'مدرسين' ? teacherId || undefined : undefined,
-        isActive,
-        customPermissions
-      });
+      await addUser({
+  name: name.trim(),
+  username: username.trim().toLowerCase(),
+  password: password.trim(),
+  email: generatedEmail,
+  phone: phone.trim(),
+  nationalId: nationalId.trim(),
+  salary: numericSalary,
+  salaryType,
+  joinedDate,
+  notes: notes.trim(),
+  department,
+  role: selectedMeta.role,
+  departmentDescription: selectedMeta.desc,
+  teacherId:
+    department === 'مدرسين'
+      ? teacherId || undefined
+      : undefined,
+  isActive,
+  customPermissions
+});
       addToast({
         type: 'success',
         title: 'تم إنشاء حساب الموظف بنجاح ✓',
@@ -429,7 +432,14 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                 <input
                   type="text"
                   value={username}
-                  onChange={e => setUsername(e.target.value.replace(/\s+/g, '').toLowerCase())}
+                 onChange={e =>
+  setUsername(
+    e.target.value
+      .replace(/\s+/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '')
+  )
+}
                   placeholder="مثال: ahmed_reception أو mona"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-mono text-left text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 outline-none"
                 />
