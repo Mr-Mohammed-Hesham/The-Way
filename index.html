@@ -8,32 +8,72 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"
     />
 
-    <title>The Way Training Center | Your Way To Success</title>
+    <title>The Way Center | Your Way To Success</title>
 
     <meta
       name="description"
-      content="The Way Training Center - منظومة شاملة لإدارة المركز التعليمي، شؤون الطلاب، المدرسين، الحصص، والحضور بالباركود"
+      content="The Way Training Center - Your Way To Success - نظام شامل لإدارة المركز التعليمي، شؤون الطلاب، الحصص، الحضور بكود الطالب الذكي، القاعات، والعقود والمدفوعات ومتابعة المتغيرات اللحظية."
     />
 
+    <!-- Open Graph / Link Share Preview (WhatsApp, Telegram, Facebook, etc.) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="The Way Center" />
     <meta
       property="og:title"
-      content="The Way Training Center | Your Way To Success"
+      content="The Way Center | Your Way To Success"
     />
-
     <meta
       property="og:description"
-      content="The Way Training Center - منظومة شاملة لإدارة المركز التعليمي، شؤون الطلاب، المدرسين، الحصص، والحضور بالباركود"
+      content="The Way Training Center - Your Way To Success - نظام شامل لإدارة المركز التعليمي، شؤون الطلاب، الحصص، الحضور بكود الطالب الذكي، القاعات، والعقود والمدفوعات ومتابعة المتغيرات اللحظية."
     />
+    <meta property="og:image" content="/The-Way/logo.png" />
+    <meta property="og:image:secure_url" content="/The-Way/logo.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1664" />
+    <meta property="og:image:height" content="928" />
+    <meta property="og:image:alt" content="The Way Training Center Logo" />
 
-    <!-- Favicon & PWA -->
-    <link rel="icon" type="image/svg+xml" href="/The-Way/favicon.svg" />
-    <link rel="alternate icon" type="image/png" href="/The-Way/favicon.png" />
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The Way Center | Your Way To Success" />
+    <meta
+      name="twitter:description"
+      content="The Way Training Center - Your Way To Success - نظام شامل لإدارة المركز التعليمي، شؤون الطلاب، الحصص، الحضور بكود الطالب الذكي، القاعات، والعقود والمدفوعات ومتابعة المتغيرات اللحظية."
+    />
+    <meta name="twitter:image" content="/The-Way/logo.png" />
+
+    <!-- Link Preview Image for Messengers -->
+    <link rel="image_src" href="/The-Way/logo.png" />
+
+    <!-- Favicon & PWA Icons (All using logo) -->
+    <link rel="icon" type="image/png" sizes="64x64" href="/The-Way/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/The-Way/logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/The-Way/logo.svg" />
+    <link rel="shortcut icon" href="/The-Way/favicon.ico" />
     <link
       rel="apple-touch-icon"
       sizes="180x180"
       href="/The-Way/apple-touch-icon.png"
     />
     <link rel="manifest" href="/The-Way/manifest.json" />
+
+    <script>
+      // Ensure absolute URLs for social share crawlers that require fully qualified URLs
+      (function() {
+        try {
+          var origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
+          var fullLogoUrl = origin + '/The-Way/logo.png';
+          var ogImg = document.querySelector('meta[property="og:image"]');
+          if (ogImg && !ogImg.content.startsWith('http')) ogImg.content = fullLogoUrl;
+          var ogSec = document.querySelector('meta[property="og:image:secure_url"]');
+          if (ogSec && !ogSec.content.startsWith('http')) ogSec.content = fullLogoUrl;
+          var twImg = document.querySelector('meta[name="twitter:image"]');
+          if (twImg && !twImg.content.startsWith('http')) twImg.content = fullLogoUrl;
+          var linkImg = document.querySelector('link[rel="image_src"]');
+          if (linkImg && !linkImg.href.startsWith('http')) linkImg.href = fullLogoUrl;
+        } catch (e) {}
+      })();
+    </script>
 
     <!-- Theme & Mobile App Styling -->
     <meta name="theme-color" content="#004D99" />
