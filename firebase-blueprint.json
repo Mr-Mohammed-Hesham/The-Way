@@ -146,6 +146,79 @@
         "address": { "type": "string", "maxLength": 256 }
       },
       "required": ["id", "centerName", "currency"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System activity and audit trace log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 64 },
+        "entityType": { "type": "string", "maxLength": 64 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "entityName": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string", "maxLength": 64 },
+        "details": { "type": "string", "maxLength": 1024 },
+        "previousValue": { "type": "string", "maxLength": 1024 },
+        "newValue": { "type": "string", "maxLength": 1024 }
+      },
+      "required": ["id", "userId", "action", "entityType", "timestamp"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System alerts and notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "message": { "type": "string", "maxLength": 1024 },
+        "date": { "type": "string", "maxLength": 32 },
+        "isRead": { "type": "boolean" },
+        "priority": { "type": "string", "maxLength": 16 }
+      },
+      "required": ["id", "type", "title", "date", "isRead"]
+    },
+    "TeacherAssignment": {
+      "title": "TeacherAssignment",
+      "description": "Assignment of teacher to subject and grade",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "subjectId": { "type": "string", "maxLength": 128 },
+        "gradeLevel": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "teacherId", "subjectId"]
+    },
+    "TeacherPayment": {
+      "title": "TeacherPayment",
+      "description": "Teacher compensation payout",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "payoutNumber": { "type": "string", "maxLength": 64 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["id", "payoutNumber", "teacherId", "amount", "date"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Center staff and system users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "maxLength": 64 },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "name", "username", "role", "isActive"]
     }
   },
   "firestore": {
@@ -184,6 +257,26 @@
     "/settings/{settingId}": {
       "schema": "CenterSettings",
       "description": "General center configuration"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Audit trace and action logs"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "System and business alerts"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": "TeacherAssignment",
+      "description": "Teacher subject assignments"
+    },
+    "/teacherPayments/{paymentId}": {
+      "schema": "TeacherPayment",
+      "description": "Teacher compensation payouts"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Staff profile and system user records"
     }
   }
 }

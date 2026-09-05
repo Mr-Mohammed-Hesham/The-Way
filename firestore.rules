@@ -114,6 +114,42 @@ service cloud.firestore {
              data.currency is string && data.currency.size() <= 16;
     }
 
+    // Validation helper for AuditLog entity
+    function isValidAuditLog(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.action is string && data.action.size() <= 64 &&
+             data.entityType is string && data.entityType.size() <= 64;
+    }
+
+    // Validation helper for Notification entity
+    function isValidNotification(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.type is string && data.type.size() <= 64 &&
+             data.title is string && data.title.size() <= 256;
+    }
+
+    // Validation helper for TeacherAssignment entity
+    function isValidAssignment(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.teacherId is string && data.teacherId.size() <= 128 &&
+             data.subjectId is string && data.subjectId.size() <= 128;
+    }
+
+    // Validation helper for TeacherPayment entity
+    function isValidTeacherPayment(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.teacherId is string && data.teacherId.size() <= 128 &&
+             data.amount is number;
+    }
+
+    // Validation helper for User entity
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.role is string && data.role.size() <= 64;
+    }
+
     // --- Collections ---
 
     // Students Collection
@@ -185,6 +221,41 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update: if isValidId(settingId) && isValidSettings(incoming());
       allow delete: if false;
+    }
+
+    // Audit Logs Collection
+    match /auditLogs/{logId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(logId) && isValidAuditLog(incoming());
+      allow delete: if isValidId(logId);
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(notificationId) && isValidNotification(incoming());
+      allow delete: if isValidId(notificationId);
+    }
+
+    // Teacher Assignments Collection
+    match /assignments/{assignmentId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(assignmentId) && isValidAssignment(incoming());
+      allow delete: if isValidId(assignmentId);
+    }
+
+    // Teacher Payments Collection
+    match /teacherPayments/{paymentId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(paymentId) && isValidTeacherPayment(incoming());
+      allow delete: if isValidId(paymentId);
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(userId) && isValidUser(incoming());
+      allow delete: if isValidId(userId);
     }
 
     // Admins Collection

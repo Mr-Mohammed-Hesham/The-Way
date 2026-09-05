@@ -35,15 +35,19 @@ export interface User {
   // Hidden system/admin account
   isHidden?: boolean;
 
+  avatar?: string;
+
   customPermissions?: AppSection[];
 }
 
 // -------------------- Student --------------------
 
 export enum StudentStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  ARCHIVED = 'ARCHIVED',
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  ARCHIVED = 'archived',
+  SUSPENDED = 'suspended',
+  GRADUATED = 'graduated',
 }
 
 export interface Student {
@@ -69,9 +73,10 @@ export interface Student {
 // -------------------- Teacher --------------------
 
 export enum TeacherStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  ARCHIVED = 'ARCHIVED',
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  ARCHIVED = 'archived',
+  ON_LEAVE = 'on_leave',
 }
 
 export interface Teacher {
@@ -111,10 +116,16 @@ export interface Subject {
 
 export interface Room {
   id: string;
+  code?: string;
   name: string;
+  number?: string;
   capacity: number;
+  type?: string;
+  equipment?: string[];
+  status?: string;
   location?: string;
   description?: string;
+  notes?: string;
   isActive?: boolean;
 }
 
@@ -132,18 +143,19 @@ export interface TeacherAssignment {
 // -------------------- Contracts --------------------
 
 export enum ContractStatus {
-  ACTIVE = 'ACTIVE',
-  COMPLETED = 'COMPLETED',
-  EXPIRED = 'EXPIRED',
-  CANCELLED = 'CANCELLED',
-  EXPIRING_SOON = 'EXPIRING_SOON',
+  ACTIVE = 'active',
+  COMPLETED = 'completed',
+  EXPIRED = 'expired',
+  CANCELLED = 'cancelled',
+  EXPIRING_SOON = 'expiring_soon',
+  SUSPENDED = 'suspended',
 }
 
 export enum PaymentMethod {
-  CASH = 'CASH',
-  CARD = 'CARD',
-  BANK_TRANSFER = 'BANK_TRANSFER',
-  OTHER = 'OTHER',
+  CASH = 'cash',
+  CARD = 'card',
+  BANK_TRANSFER = 'bank_transfer',
+  OTHER = 'other',
 }
 
 export interface Contract {
@@ -166,16 +178,19 @@ export interface Contract {
 // -------------------- Sessions --------------------
 
 export enum SessionStatus {
-  SCHEDULED = 'SCHEDULED',
-  LIVE = 'LIVE',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
+  SCHEDULED = 'scheduled',
+  LIVE = 'live',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  RESCHEDULED = 'rescheduled',
 }
 
 export enum SessionType {
-  INDIVIDUAL = 'INDIVIDUAL',
-  GROUP = 'GROUP',
-  MAKEUP = 'MAKEUP',
+  INDIVIDUAL = 'individual',
+  GROUP = 'group',
+  MAKEUP = 'makeup',
+  ONLINE = 'online',
+  REVIEW = 'review',
 }
 
 export interface Session {
@@ -199,10 +214,11 @@ export interface Session {
 // -------------------- Attendance --------------------
 
 export enum AttendanceStatus {
-  PRESENT = 'PRESENT',
-  ABSENT = 'ABSENT',
-  LATE = 'LATE',
-  EXCUSED = 'EXCUSED',
+  PRESENT = 'present',
+  ABSENT = 'absent',
+  LATE = 'late',
+  EXCUSED = 'excused',
+  CANCELLED = 'cancelled',
 }
 
 export interface AttendanceRecord {
@@ -309,29 +325,50 @@ export interface CenterSettings {
 
 // -------------------- App Sections --------------------
 
-export enum AppSection {
-  DASHBOARD = 'dashboard',
-  LIVE = 'live',
-  STUDENTS = 'students',
-  TEACHERS = 'teachers',
-  SUBJECTS = 'subjects',
-  ROOMS = 'rooms',
-  ASSIGNMENTS = 'assignments',
-  CONTRACTS = 'contracts',
-  SESSIONS = 'sessions',
-  ATTENDANCE = 'attendance',
-  PAYMENTS = 'payments',
-  TEACHER_PAYMENTS = 'teacher_payments',
-  NOTIFICATIONS = 'notifications',
-  REPORTS = 'reports',
-  AUDIT = 'audit',
-  USERS = 'users',
-  SETTINGS = 'settings',
-}
+export type AppSection =
+  | 'dashboard'
+  | 'live'
+  | 'students'
+  | 'teachers'
+  | 'subjects'
+  | 'rooms'
+  | 'assignments'
+  | 'contracts'
+  | 'sessions'
+  | 'attendance'
+  | 'payments'
+  | 'teacher_payments'
+  | 'notifications'
+  | 'reports'
+  | 'audit'
+  | 'users'
+  | 'settings';
+
+export const AppSection = {
+  DASHBOARD: 'dashboard',
+  LIVE: 'live',
+  STUDENTS: 'students',
+  TEACHERS: 'teachers',
+  SUBJECTS: 'subjects',
+  ROOMS: 'rooms',
+  ASSIGNMENTS: 'assignments',
+  CONTRACTS: 'contracts',
+  SESSIONS: 'sessions',
+  ATTENDANCE: 'attendance',
+  PAYMENTS: 'payments',
+  TEACHER_PAYMENTS: 'teacher_payments',
+  NOTIFICATIONS: 'notifications',
+  REPORTS: 'reports',
+  AUDIT: 'audit',
+  USERS: 'users',
+  SETTINGS: 'settings',
+} as const;
 
 // -------------------- Conflict Checking --------------------
 
 export interface ConflictCheckResult {
   hasConflict: boolean;
-  conflicts: string[];
+  reasons?: string[];
+  conflicts?: string[];
+  conflictingSessionIds?: string[];
 }

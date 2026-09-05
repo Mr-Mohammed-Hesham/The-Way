@@ -1024,7 +1024,11 @@ export const AppProvider: React.FC<{
 
     } else {
       finalType =
-        typeOrOptions;
+        typeOrOptions as
+          | 'success'
+          | 'error'
+          | 'warning'
+          | 'info';
 
       finalMessage =
         message || '';

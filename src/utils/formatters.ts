@@ -1,4 +1,4 @@
-import { Session, Room, AttendanceRecord, AttendanceStatus, ConflictCheckResult } from '../types';
+import { Session, SessionStatus, Room, AttendanceRecord, AttendanceStatus, ConflictCheckResult } from '../types';
 
 export function formatCurrency(amount: number, currency: string = 'ج.م'): string {
   return `${amount.toLocaleString('ar-EG')} ${currency}`;
@@ -79,7 +79,7 @@ export function checkSessionConflicts(
   const conflictingSessionIds: string[] = [];
 
   if (!target || !target.startTime || !target.endTime || !target.date) {
-    return { hasConflict: false, reasons: [], conflictingSessionIds: [] };
+    return { hasConflict: false, reasons: [], conflicts: [], conflictingSessionIds: [] };
   }
 
   // Check end time vs start time
@@ -100,7 +100,7 @@ export function checkSessionConflicts(
   const safeRoomsMap = roomsMap || {};
 
   const sameDaySessions = (existingSessions || []).filter(
-    s => s.date === target.date && s.id !== target.id && s.status !== 'cancelled'
+    s => s.date === target.date && s.id !== target.id && s.status !== SessionStatus.CANCELLED
   );
 
   for (const session of sameDaySessions) {
@@ -155,6 +155,7 @@ export function checkSessionConflicts(
   return {
     hasConflict: reasons.length > 0,
     reasons,
+    conflicts: reasons,
     conflictingSessionIds: Array.from(new Set(conflictingSessionIds))
   };
 }

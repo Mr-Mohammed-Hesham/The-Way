@@ -41,6 +41,31 @@ export interface CloudSyncStatus {
   error: string | null;
 }
 
+/**
+ * Recursively strips all `undefined` values from an object or array.
+ * Firestore strictly rejects documents with any property set to `undefined`.
+ */
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as unknown as T;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const cleanObj: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data as Record<string, any>)) {
+      if (value !== undefined) {
+        cleanObj[key] = sanitizeForFirestore(value);
+      }
+    }
+    return cleanObj as T;
+  }
+  return data;
+}
+
 class FirebaseSyncService {
   private static instance: FirebaseSyncService;
 
@@ -738,13 +763,15 @@ class FirebaseSyncService {
         isSyncing: true
       });
 
+      const sanitizedItem = sanitizeForFirestore(item);
+
       await setDoc(
         doc(
           db,
           collectionName,
           item.id
         ),
-        item,
+        sanitizedItem,
         {
           merge: true
         }
@@ -843,10 +870,10 @@ class FirebaseSyncService {
           'settings',
           'center_config'
         ),
-        {
+        sanitizeForFirestore({
           ...settings,
           id: 'center_config'
-        }
+        })
       );
 
       /*
@@ -862,7 +889,7 @@ class FirebaseSyncService {
             'students',
             student.id
           ),
-          student
+          sanitizeForFirestore(student)
         );
       }
 
@@ -879,7 +906,7 @@ class FirebaseSyncService {
             'teachers',
             teacher.id
           ),
-          teacher
+          sanitizeForFirestore(teacher)
         );
       }
 
@@ -896,7 +923,7 @@ class FirebaseSyncService {
             'subjects',
             subject.id
           ),
-          subject
+          sanitizeForFirestore(subject)
         );
       }
 
@@ -913,7 +940,7 @@ class FirebaseSyncService {
             'rooms',
             room.id
           ),
-          room
+          sanitizeForFirestore(room)
         );
       }
 
@@ -930,7 +957,7 @@ class FirebaseSyncService {
             'assignments',
             assignment.id
           ),
-          assignment
+          sanitizeForFirestore(assignment)
         );
       }
 
@@ -947,7 +974,7 @@ class FirebaseSyncService {
             'contracts',
             contract.id
           ),
-          contract
+          sanitizeForFirestore(contract)
         );
       }
 
@@ -964,7 +991,7 @@ class FirebaseSyncService {
             'sessions',
             session.id
           ),
-          session
+          sanitizeForFirestore(session)
         );
       }
 
@@ -981,7 +1008,7 @@ class FirebaseSyncService {
             'attendance',
             attendance.id
           ),
-          attendance
+          sanitizeForFirestore(attendance)
         );
       }
 
@@ -998,7 +1025,7 @@ class FirebaseSyncService {
             'payments',
             payment.id
           ),
-          payment
+          sanitizeForFirestore(payment)
         );
       }
 
@@ -1015,7 +1042,7 @@ class FirebaseSyncService {
             'teacherPayments',
             teacherPayment.id
           ),
-          teacherPayment
+          sanitizeForFirestore(teacherPayment)
         );
       }
 
@@ -1032,7 +1059,7 @@ class FirebaseSyncService {
             'notifications',
             notification.id
           ),
-          notification
+          sanitizeForFirestore(notification)
         );
       }
 
@@ -1049,7 +1076,7 @@ class FirebaseSyncService {
             'auditLogs',
             auditLog.id
           ),
-          auditLog
+          sanitizeForFirestore(auditLog)
         );
       }
 

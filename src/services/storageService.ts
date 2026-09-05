@@ -296,8 +296,8 @@ export class StorageService {
       entityName,
       timestamp,
       details,
-      previousValue,
-      newValue
+      ...(previousValue !== undefined ? { previousValue } : {}),
+      ...(newValue !== undefined ? { newValue } : {})
     };
 
     this.auditLogs = [
