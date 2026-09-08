@@ -87,9 +87,10 @@
 
     <!-- PWA Installation -->
     <script>
+      window.deferredPrompt = null;
+
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
-
         window.deferredPrompt = e;
 
         window.dispatchEvent(
@@ -101,11 +102,26 @@
         if (window.onBeforeInstallPrompt) {
           window.onBeforeInstallPrompt(e);
         }
+
+        // Direct native prompt on page if requested via install=now or storage
+        try {
+          var urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.get('install') === 'now' || sessionStorage.getItem('theway_direct_install') === '1') {
+            sessionStorage.removeItem('theway_direct_install');
+            setTimeout(function() {
+              if (window.deferredPrompt) {
+                window.deferredPrompt.prompt().catch(function() {});
+              }
+            }, 300);
+          }
+        } catch (err) {}
       });
 
       window.addEventListener('appinstalled', () => {
         window.deferredPrompt = null;
-
+        try {
+          localStorage.setItem('theway_installed', 'true');
+        } catch(e) {}
         window.dispatchEvent(
           new CustomEvent('theway:pwa-installed')
         );
@@ -114,19 +130,17 @@
       // Register Service Worker
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
+          const swPath = window.location.pathname.startsWith('/The-Way') ? '/The-Way/sw.js' : './sw.js';
           navigator.serviceWorker
-            .register('/The-Way/sw.js')
+            .register(swPath)
             .then((registration) => {
               console.log(
-                'The Way ServiceWorker registered:',
+                'The Way ServiceWorker registered successfully:',
                 registration.scope
               );
             })
-            .catch((error) => {
-              console.error(
-                'ServiceWorker registration failed:',
-                error
-              );
+            .catch(() => {
+              navigator.serviceWorker.register('./sw.js').catch(() => {});
             });
         });
       }

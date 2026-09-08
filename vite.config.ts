@@ -9,6 +9,21 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    {
+      name: 'root-pwa-redirect',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url === '/manifest.json') {
+            req.url = '/The-Way/manifest.json';
+          } else if (req.url === '/manifest.webmanifest') {
+            req.url = '/The-Way/manifest.webmanifest';
+          } else if (req.url === '/sw.js') {
+            req.url = '/The-Way/sw.js';
+          }
+          next();
+        });
+      },
+    },
   ],
 
   resolve: {
