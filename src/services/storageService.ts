@@ -245,6 +245,24 @@ export class StorageService {
       this.listeners.delete(listener);
   }
 
+  public reloadAll(): void {
+    this.settings = getStored(STORAGE_KEYS.SETTINGS, initialSettings);
+    this.users = getStored(STORAGE_KEYS.USERS, initialUsers);
+    this.subjects = getStored(STORAGE_KEYS.SUBJECTS, initialSubjects);
+    this.rooms = getStored(STORAGE_KEYS.ROOMS, initialRooms);
+    this.teachers = getStored(STORAGE_KEYS.TEACHERS, initialTeachers);
+    this.students = getStored(STORAGE_KEYS.STUDENTS, initialStudents);
+    this.assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, initialTeacherAssignments);
+    this.contracts = getStored(STORAGE_KEYS.CONTRACTS, initialContracts);
+    this.sessions = getStored(STORAGE_KEYS.SESSIONS, initialSessions);
+    this.attendance = getStored(STORAGE_KEYS.ATTENDANCE, initialAttendance);
+    this.payments = getStored(STORAGE_KEYS.PAYMENTS, initialPayments);
+    this.teacherPayments = getStored(STORAGE_KEYS.TEACHER_PAYMENTS, initialTeacherPayments);
+    this.notifications = getStored(STORAGE_KEYS.NOTIFICATIONS, initialNotifications);
+    this.auditLogs = getStored(STORAGE_KEYS.AUDIT_LOGS, initialAuditLogs);
+    this.notify();
+  }
+
   private notify(): void {
     this.listeners.forEach(fn => fn());
   }

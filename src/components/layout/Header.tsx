@@ -62,7 +62,9 @@ export const Header: React.FC<HeaderProps> = ({
     theme,
     toggleTheme,
     cloudSyncStatus,
-    syncWithFirebase
+    syncWithFirebase,
+    isRefreshingPlatform,
+    refreshPlatform
   } = useApp();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -181,6 +183,24 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="بحث شامل"
           >
             <Search className="w-4 h-4" />
+          </button>
+
+          {/* Refresh Platform Button (تحديث المنصة) */}
+          <button
+            onClick={() => refreshPlatform()}
+            disabled={isRefreshingPlatform}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-2xl border text-xs font-bold transition-all cursor-pointer select-none active:scale-95 shadow-xs ${
+              isRefreshingPlatform
+                ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-400 text-amber-700 dark:text-amber-300'
+                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-amber-50/70 dark:hover:bg-amber-950/30 hover:border-amber-400/80 hover:text-amber-800 dark:hover:text-amber-300'
+            }`}
+            title="تحديث المنصة ومزامنة كافة البيانات السحابية فوراً"
+            aria-label="تحديث المنصة"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-amber-600 dark:text-amber-400 ${isRefreshingPlatform ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">
+              {isRefreshingPlatform ? 'جاري التحديث...' : 'تحديث المنصة'}
+            </span>
           </button>
 
           {/* Install App Button with animated arrow */}

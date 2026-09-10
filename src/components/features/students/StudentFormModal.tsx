@@ -3,7 +3,7 @@ import { Modal } from '../../common/Modal';
 import { useApp } from '../../../context/AppContext';
 import { Student, StudentStatus } from '../../../types';
 import { UAE_GRADES_BASE, TRACK_OPTIONS, formatUAEGrade } from '../../../utils/gradeConstants';
-import { BookOpen, Plus, Sparkles } from 'lucide-react';
+import { BookOpen, Plus, Sparkles, X, Check } from 'lucide-react';
 
 interface StudentFormModalProps {
   isOpen: boolean;
@@ -16,7 +16,12 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
   onClose,
   studentToEdit
 }) => {
-  const { subjects, addStudent, updateStudent } = useApp();
+  const { subjects, addStudent, updateStudent, addSubject, addToast } = useApp();
+
+  const [isAddingManualSubject, setIsAddingManualSubject] = useState(false);
+  const [manualSubjectName, setManualSubjectName] = useState('');
+  const [manualSubjectCode, setManualSubjectCode] = useState('');
+  const [manualSubjectPrice, setManualSubjectPrice] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -160,6 +165,43 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
       const next = exists ? prev.subjectIds.filter(id => id !== subId) : [...prev.subjectIds, subId];
       return { ...prev, subjectIds: next };
     });
+  };
+
+  const handleAddManualSubject = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmedName = manualSubjectName.trim();
+    if (!trimmedName) {
+      addToast('warning', 'يرجى إدخال اسم المادة الدراسية المراد إضافتها', 'تنبيه');
+      return;
+    }
+
+    const finalCode = manualSubjectCode.trim() || `SUB-${subjects.length + 101}`;
+    const priceNum = manualSubjectPrice ? parseFloat(manualSubjectPrice) : undefined;
+
+    const newSubject = addSubject({
+      name: trimmedName,
+      code: finalCode,
+      isActive: true,
+      gradeLevels: [formData.grade],
+      category: 'عام',
+      description: `مادة مضافة يدوياً أثناء تسجيل الطالب (${formData.name || 'طالب جديد'})`,
+      defaultSessionPrice: priceNum
+    });
+
+    if (newSubject) {
+      setFormData(prev => ({
+        ...prev,
+        subjectIds: prev.subjectIds.includes(newSubject.id)
+          ? prev.subjectIds
+          : [...prev.subjectIds, newSubject.id]
+      }));
+
+      addToast('success', `تمت إضافة مادة "${newSubject.name}" واختيارها للطالب فوراً ✨`, 'إضافة مادة يدوياً');
+      setManualSubjectName('');
+      setManualSubjectCode('');
+      setManualSubjectPrice('');
+      setIsAddingManualSubject(false);
+    }
   };
 
   // Check if chosen grade allows tracks (Grades 9 to 12)
@@ -385,12 +427,97 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
 
         {/* Subjects Registration */}
         <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center justify-between">
-            <span>3. المواد الدراسية المسجل بها الطالب</span>
-            <span className="text-[10px] text-slate-400 font-normal">
-              اختر مادة أو أكثر لربط الطالب بالحصص والكشوف
-            </span>
-          </h4>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>3. المواد الدراسية المسجل بها الطالب</span>
+              </h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                اختر مادة أو أكثر لربط الطالب بالحصص والكشوف، أو أضف مادة دراسية يدوياً فوراً
+              </p>
+            </div>
+
+            {/* Button: إضافة مادة يدوياً */}
+            <button
+              type="button"
+              onClick={() => setIsAddingManualSubject(prev => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-black shadow-sm shadow-amber-600/30 transition-all cursor-pointer select-none active:scale-95"
+              title="إضافة مادة دراسية يدوياً وتعيينها للطالب"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>إضافة مادة يدوياً</span>
+            </button>
+          </div>
+
+          {/* Inline Manual Subject Creation Box */}
+          {isAddingManualSubject && (
+            <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  إدخال بيانات المادة يدوياً وتعيينها للطالب
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingManualSubject(false)}
+                  className="text-amber-700 dark:text-amber-300 hover:text-amber-900 text-xs px-2 py-0.5 rounded-lg hover:bg-amber-200/50"
+                >
+                  <X className="w-4 h-4 inline" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    اسم المادة الدراسية <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSubjectName}
+                    onChange={e => setManualSubjectName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddManualSubject();
+                      }
+                    }}
+                    placeholder="مثال: فيزياء متقدمة - ثانوية / EmSAT Math / كيمياء لغات"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-amber-300 dark:border-amber-700/60 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    كود المادة (اختياري)
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSubjectCode}
+                    onChange={e => setManualSubjectCode(e.target.value)}
+                    placeholder="مثال: SUB-PHY"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-amber-300 dark:border-amber-700/60 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] text-amber-800 dark:text-amber-300 font-medium">
+                  ✨ سيتم إنشاء المادة فوراً وتثبيتها في النظام واختيارها لهذا الطالب تلقائياً.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleAddManualSubject()}
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة المادة واختيارها</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-h-48 overflow-y-auto p-1">
             {subjects.map(sub => {
               const isSelected = formData.subjectIds.includes(sub.id);

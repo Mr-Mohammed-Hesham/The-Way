@@ -21,7 +21,8 @@ import {
   X,
   Eye,
   LogOut,
-  ChevronLeft
+  ChevronLeft,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { AppSection } from '../../types';
@@ -44,7 +45,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     currentUser,
     canViewSection,
     canEditSection,
-    logout
+    logout,
+    isRefreshingPlatform,
+    refreshPlatform
   } = useApp();
 
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -263,8 +266,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <InstallAppButton variant="sidebar" />
         </div>
 
-        {/* Footer Summary / Quick Info & Logout */}
-        <div className="p-3.5 border-t border-slate-800/80 bg-[#0B1120] text-[11px] text-slate-400 flex items-center justify-between">
+        {/* Footer Summary / Quick Info, Refresh & Logout */}
+        <div className="p-3 border-t border-slate-800/80 bg-[#0B1120] text-[11px] text-slate-400 space-y-2">
+          <button
+            onClick={() => refreshPlatform()}
+            disabled={isRefreshingPlatform}
+            className="flex items-center gap-2 text-xs text-amber-400 hover:text-amber-300 font-bold px-3 py-2 rounded-xl hover:bg-amber-950/30 transition-all cursor-pointer w-full justify-center border border-amber-800/40 select-none active:scale-95"
+            title="تحديث المنصة ومزامنة كافة البيانات السحابية فوراً"
+          >
+            <RefreshCw className={`w-4 h-4 text-amber-400 ${isRefreshingPlatform ? 'animate-spin' : ''}`} />
+            <span>{isRefreshingPlatform ? 'جاري تحديث المنصة...' : 'تحديث المنصة'}</span>
+          </button>
+
           <button
             onClick={() => setIsLogoutModalOpen(true)}
             className="flex items-center gap-2 text-xs text-rose-400 hover:text-rose-300 font-bold px-3 py-2 rounded-xl hover:bg-rose-950/40 transition-colors cursor-pointer w-full justify-center border border-rose-900/30"

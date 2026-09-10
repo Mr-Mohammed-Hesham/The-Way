@@ -21,8 +21,10 @@ import {
 import { useApp } from '../../../context/AppContext';
 import { Badge } from '../../common/Badge';
 import { ConfirmModal } from '../../common/ConfirmModal';
+import { Modal } from '../../common/Modal';
 import { ViewOnlyBanner } from '../../common/ViewOnlyBanner';
 import { Student, StudentStatus } from '../../../types';
+import { Sparkles, BookOpen } from 'lucide-react';
 
 interface StudentsViewProps {
   onOpenAddStudent?: () => void;
@@ -44,7 +46,9 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
     deleteStudent,
     setActiveQRStudent,
     subjectsMap,
-    canEditSection
+    canEditSection,
+    addSubject,
+    addToast
   } = useApp();
 
   const isEditable = canEditSection('students');
@@ -55,6 +59,13 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+
+  // Manual Subject Modal State
+  const [isAddManualSubjectOpen, setIsAddManualSubjectOpen] = useState(false);
+  const [manualSubjectName, setManualSubjectName] = useState('');
+  const [manualSubjectCode, setManualSubjectCode] = useState('');
+  const [manualSubjectGrade, setManualSubjectGrade] = useState('كافة الصفوف');
+  const [manualSubjectPrice, setManualSubjectPrice] = useState('');
 
   // Extract unique grades
   const grades = useMemo(() => {
@@ -107,13 +118,45 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
     document.body.removeChild(link);
   };
 
+  // Handle Manual Subject Creation
+  const handleAddManualSubject = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = manualSubjectName.trim();
+    if (!trimmed) {
+      addToast('warning', 'يرجى كتابة اسم المادة الدراسية', 'تنبيه');
+      return;
+    }
+
+    const code = manualSubjectCode.trim() || `SUB-${subjects.length + 101}`;
+    const priceNum = manualSubjectPrice ? parseFloat(manualSubjectPrice) : undefined;
+
+    const newSub = addSubject({
+      name: trimmed,
+      code,
+      isActive: true,
+      gradeLevels: [manualSubjectGrade],
+      category: 'عام',
+      description: 'مادة دراسية مضافة يدوياً من شاشة إدارة الطلاب',
+      defaultSessionPrice: priceNum
+    });
+
+    if (newSub) {
+      addToast('success', `تمت إضافة مادة "${newSub.name}" بنجاح ✨`, 'إضافة مادة يدوياً');
+      setManualSubjectName('');
+      setManualSubjectCode('');
+      setManualSubjectPrice('');
+      setIsAddManualSubjectOpen(false);
+      setSelectedSubject(newSub.id);
+    }
+  };
+
   return (
     <div className="space-y-6 text-right">
       {/* View Only Banner for restricted departments */}
       <ViewOnlyBanner section="students" />
 
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-indigo-600" />
@@ -124,7 +167,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center flex-wrap gap-2 sm:gap-2.5">
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-2xl transition-colors cursor-pointer"
@@ -134,13 +177,40 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
           </button>
 
           {isEditable && (
-            <button
-              onClick={onOpenAddContract || onOpenAddStudent}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:to-amber-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-amber-600/30 transition-all cursor-pointer"
-            >
-              <FileText className="w-4 h-4" />
-              <span>عقد اشتراك جديد</span>
-            </button>
+            <>
+              {/* Add Student Button */}
+              {onOpenAddStudent && (
+                <button
+                  onClick={onOpenAddStudent}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl shadow-xs transition-all cursor-pointer select-none active:scale-95"
+                  title="تسجيل طالب جديد بالمركز"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>تسجيل طالب جديد</span>
+                </button>
+              )}
+
+              {/* Add Subject Manually Button */}
+              <button
+                onClick={() => setIsAddManualSubjectOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 text-xs font-bold rounded-2xl transition-all cursor-pointer select-none active:scale-95 shadow-xs"
+                title="إضافة مادة دراسية يدوياً وتوفيرها للطلاب"
+              >
+                <BookOpen className="w-4 h-4 text-amber-600" />
+                <span>إضافة مادة يدوياً</span>
+              </button>
+
+              {/* Add Contract Button */}
+              {onOpenAddContract && (
+                <button
+                  onClick={onOpenAddContract}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:to-amber-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-amber-600/30 transition-all cursor-pointer select-none active:scale-95"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>عقد اشتراك جديد</span>
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -451,6 +521,97 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
         cancelText="إلغاء"
         variant="danger"
       />
+
+      {/* Manual Subject Creation Modal */}
+      <Modal
+        isOpen={isAddManualSubjectOpen}
+        onClose={() => setIsAddManualSubjectOpen(false)}
+        title="إضافة مادة دراسية يدوياً"
+        subtitle="إنشاء مادة جديدة فوراً لتكون متاحة لجميع الطلاب وعقود الاشتراك"
+        maxWidth="lg"
+      >
+        <form onSubmit={handleAddManualSubject} className="space-y-4 text-right p-1">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              اسم المادة الدراسية <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={manualSubjectName}
+              onChange={e => setManualSubjectName(e.target.value)}
+              placeholder="مثال: رياضيات متقدمة، كيمياء EmSAT، لغة إنجليزية"
+              className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+              autoFocus
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                كود المادة (اختياري)
+              </label>
+              <input
+                type="text"
+                value={manualSubjectCode}
+                onChange={e => setManualSubjectCode(e.target.value)}
+                placeholder="مثال: SUB-MATH"
+                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                سعر الحصة الافتراضي (درهم)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="5"
+                value={manualSubjectPrice}
+                onChange={e => setManualSubjectPrice(e.target.value)}
+                placeholder="مثال: 120"
+                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              المرحلة / الصف الموجه له
+            </label>
+            <select
+              value={manualSubjectGrade}
+              onChange={e => setManualSubjectGrade(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="كافة الصفوف">كافة الصفوف والمراحل</option>
+              {grades.map(g => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsAddManualSubjectOpen(false)}
+              className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>حفظ وإضافة المادة الآن</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

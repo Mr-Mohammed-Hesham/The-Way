@@ -19,7 +19,10 @@ import {
   Printer,
   ShieldCheck,
   FileUp,
-  Download
+  Download,
+  BookOpen,
+  Sparkles,
+  X
 } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
 import { Badge } from '../../common/Badge';
@@ -59,7 +62,10 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     setActiveQRStudent,
     setActiveReceiptPayment,
     canViewFinancials,
-    canEditSection
+    canEditSection,
+    updateStudent,
+    addSubject,
+    addToast
   } = useApp();
 
   const canEditStudent = canEditSection('students');
@@ -71,6 +77,11 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   >('overview');
 
   const student = students.find(s => s.id === studentId);
+
+  const [isAddingSubject, setIsAddingSubject] = useState(false);
+  const [manualSubjectName, setManualSubjectName] = useState('');
+  const [manualSubjectCode, setManualSubjectCode] = useState('');
+  const [manualSubjectPrice, setManualSubjectPrice] = useState('');
 
   if (!student) {
     return (
@@ -312,13 +323,119 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
       {/* TAB CONTENT 2: Academic Information */}
       {activeTab === 'academic' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-base text-slate-900">المواد الدراسية والمدرسين المعينين</h3>
-            <span className="text-xs text-slate-500">
-              مسجل في {student.subjectIds.length} مواد دراسية
-            </span>
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-indigo-600" />
+                <span>المواد الدراسية والمدرسين المعينين</span>
+              </h3>
+              <span className="text-xs text-slate-500">
+                مسجل في {student.subjectIds.length} مواد دراسية
+              </span>
+            </div>
+
+            {canEditStudent && (
+              <button
+                onClick={() => setIsAddingSubject(prev => !prev)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer select-none active:scale-95"
+                title="إضافة مادة دراسية يدوياً وتعيينها لهذا الطالب فوراً"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>إضافة مادة يدوياً</span>
+              </button>
+            )}
           </div>
+
+          {/* Inline Manual Subject Creation Box for Student */}
+          {isAddingSubject && canEditStudent && (
+            <div className="p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  إضافة مادة دراسية يدوياً وتعيينها للطالب ({student.name})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingSubject(false)}
+                  className="text-amber-700 hover:text-amber-900 text-xs px-2 py-0.5 rounded-lg hover:bg-amber-200/50"
+                >
+                  <X className="w-4 h-4 inline" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    اسم المادة الدراسية <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSubjectName}
+                    onChange={e => setManualSubjectName(e.target.value)}
+                    placeholder="مثال: رياضيات متقدمة - ثانوية عامة"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-amber-300 bg-white text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    كود المادة (اختياري)
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSubjectCode}
+                    onChange={e => setManualSubjectCode(e.target.value)}
+                    placeholder="مثال: SUB-M12"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-amber-300 bg-white text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] text-amber-800 font-medium">
+                  ✨ سيتم حفظ المادة وتعيينها لملف الطالب فوراً.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = manualSubjectName.trim();
+                    if (!trimmed) {
+                      addToast('warning', 'يرجى إدخال اسم المادة الدراسية', 'تنبيه');
+                      return;
+                    }
+                    const code = manualSubjectCode.trim() || `SUB-${subjects.length + 101}`;
+                    const priceNum = manualSubjectPrice ? parseFloat(manualSubjectPrice) : undefined;
+                    const newSub = addSubject({
+                      name: trimmed,
+                      code,
+                      isActive: true,
+                      gradeLevels: [student.grade],
+                      category: 'عام',
+                      description: `مادة مضافة يدوياً من ملف الطالب (${student.name})`,
+                      defaultSessionPrice: priceNum
+                    });
+                    if (newSub) {
+                      const updatedIds = student.subjectIds.includes(newSub.id)
+                        ? student.subjectIds
+                        : [...student.subjectIds, newSub.id];
+                      updateStudent(student.id, { subjectIds: updatedIds });
+                      addToast('success', `تمت إضافة مادة "${newSub.name}" وتعيينها للطالب ${student.name} بنجاح ✨`, 'إضافة مادة');
+                      setManualSubjectName('');
+                      setManualSubjectCode('');
+                      setManualSubjectPrice('');
+                      setIsAddingSubject(false);
+                    }
+                  }}
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة المادة وربطها بالطالب</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {student.subjectIds.map(subId => {

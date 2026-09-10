@@ -406,6 +406,11 @@ interface AppContextType {
   cloudSyncStatus: CloudSyncStatus;
 
   syncWithFirebase: () => Promise<void>;
+
+  // Platform Refresh
+  isRefreshingPlatform: boolean;
+
+  refreshPlatform: () => Promise<void>;
 }
 
 const AppContext = createContext<
@@ -753,6 +758,70 @@ export const AppProvider: React.FC<{
         throw err;
       }
     };
+
+  // ============================================================
+  // PLATFORM REFRESH
+  // ============================================================
+
+  const [isRefreshingPlatform, setIsRefreshingPlatform] =
+    useState<boolean>(false);
+
+  const refreshPlatform = async () => {
+    try {
+      setIsRefreshingPlatform(true);
+      addToast(
+        'info',
+        'جاري تحديث المنصة ومزامنة البيانات السحابية...',
+        'تحديث المنصة 🔄'
+      );
+
+      // 1. Sync with Firebase if authenticated
+      if (isAuthenticated) {
+        try {
+          await firebaseSync.seedAllToFirestore(storage);
+        } catch (e) {
+          console.warn('Firebase sync during platform refresh:', e);
+        }
+      }
+
+      // 2. Reload all storage collections
+      storage.reloadAll();
+
+      // 3. Update Service Worker caches if registered
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const reg of regs) {
+            await reg.update();
+          }
+        } catch (swErr) {
+          console.warn('Service worker refresh:', swErr);
+        }
+      }
+
+      // 4. Update re-render version and current live clock
+      setVersion(v => v + 1);
+      setCurrentTime(new Date());
+
+      // Artificial small smoothing delay for UX
+      await new Promise(res => setTimeout(res, 500));
+
+      addToast(
+        'success',
+        'تم تحديث المنصة ومزامنة كافة البيانات والخدمات بنجاح 🚀',
+        'تحديث ناجح'
+      );
+    } catch (err: any) {
+      console.error('Refresh platform error:', err);
+      addToast(
+        'error',
+        'حدث خطأ أثناء تحديث المنصة، يرجى المحاولة مرة أخرى',
+        'تنبيه التحديث'
+      );
+    } finally {
+      setIsRefreshingPlatform(false);
+    }
+  };
 
   // ============================================================
   // THEME
@@ -3668,7 +3737,11 @@ export const AppProvider: React.FC<{
 
         cloudSyncStatus,
 
-        syncWithFirebase
+        syncWithFirebase,
+
+        isRefreshingPlatform,
+
+        refreshPlatform
       }}
     >
       {children}
