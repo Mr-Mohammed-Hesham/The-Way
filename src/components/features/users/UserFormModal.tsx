@@ -78,7 +78,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('123');
+  const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -116,7 +116,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
     } else {
       setName('');
       setUsername('');
-      setPassword('123');
+      setPassword('123456');
       setEmail('');
       setPhone('');
       setNationalId('');
@@ -205,7 +205,11 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
     } else if (username.length < 3) {
       errs.username = 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل';
     }
-    if (!password.trim()) errs.password = 'يرجى إدخال كلمة المرور';
+    if (!password.trim()) {
+      errs.password = 'يرجى إدخال كلمة المرور';
+    } else if (!userToEdit && password.trim().length < 6) {
+      errs.password = 'كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل (متطلب Firebase)';
+    }
     if (!phone.trim()) errs.phone = 'يرجى إدخال رقم الهاتف';
 
     setErrors(errs);

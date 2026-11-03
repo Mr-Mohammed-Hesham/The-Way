@@ -2562,10 +2562,26 @@ export class StorageService {
   // =========================================================
 
   public getUsers(): User[] {
-  return this.users.filter(
-    user => user.isHidden !== true
-  );
-}
+    return this.users.filter(
+      user => user.isHidden !== true
+    );
+  }
+
+  public getAllUsers(): User[] {
+    return [...this.users];
+  }
+
+  public findUserByIdentifier(identifier: string): User | undefined {
+    const clean = identifier.trim().toLowerCase();
+    const localPart = clean.includes('@') ? clean.split('@')[0] : clean;
+    return this.users.find(
+      u =>
+        u.id === identifier ||
+        (u.username && u.username.toLowerCase() === clean) ||
+        (u.username && u.username.toLowerCase() === localPart) ||
+        (u.email && u.email.toLowerCase() === clean)
+    );
+  }
 
   public getActiveUser(): User | null {
     const stored =
@@ -3544,6 +3560,83 @@ export class StorageService {
       this.auditLogs
     );
 
+    this.notify();
+  }
+
+  public mergeRemoteUsers(
+    remoteUsers: User[]
+  ): void {
+    if (!remoteUsers || remoteUsers.length === 0) {
+      return;
+    }
+
+    const map = new Map<string, User>();
+
+    this.users.forEach(u => {
+      map.set(u.id, u);
+    });
+
+    remoteUsers.forEach(remote => {
+      const normalizedRemoteUsername = (
+        remote.username ||
+        (remote.email ? remote.email.split('@')[0] : '') ||
+        remote.id
+      )
+        .trim()
+        .toLowerCase();
+
+      // Remove duplicate non-UID local placeholder with same username if remote has real UID
+      for (const [existingId, existingUser] of map.entries()) {
+        if (
+          existingId !== remote.id &&
+          existingId.startsWith('usr-') &&
+          existingUser.username?.toLowerCase() === normalizedRemoteUsername
+        ) {
+          map.delete(existingId);
+        }
+      }
+
+      const existing = map.get(remote.id);
+
+      map.set(remote.id, {
+        ...existing,
+        ...remote,
+        id: remote.id,
+        name: remote.name || existing?.name || 'موظف',
+        username: normalizedRemoteUsername,
+        email: remote.email || existing?.email || `${normalizedRemoteUsername}@theway.local`,
+        role: Object.values(UserRole).includes(remote.role as UserRole)
+          ? (remote.role as UserRole)
+          : existing?.role || UserRole.RECEPTION,
+        department: remote.department || existing?.department || 'إدارة',
+        phone: remote.phone || existing?.phone || '',
+        password: remote.password || existing?.password || '••••••',
+        isActive: remote.isActive !== false,
+        isHidden: remote.isHidden === true
+      });
+    });
+
+    this.users = Array.from(map.values());
+    setStored(STORAGE_KEYS.USERS, this.users);
+    this.notify();
+  }
+
+  public mergeRemoteSettings(
+    remoteSettings: Partial<CenterSettings>
+  ): void {
+    if (!remoteSettings || !remoteSettings.centerName) {
+      return;
+    }
+
+    const { ...cleanSettings } = remoteSettings as CenterSettings & { id?: string };
+    delete (cleanSettings as any).id;
+
+    this.settings = {
+      ...this.settings,
+      ...cleanSettings
+    };
+
+    setStored(STORAGE_KEYS.SETTINGS, this.settings);
     this.notify();
   }
 }

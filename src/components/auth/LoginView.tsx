@@ -13,45 +13,38 @@ import { TheWayLogo } from '../common/TheWayLogo';
 import { InstallAppButton } from '../common/InstallAppPrompt';
 
 export const LoginView: React.FC = () => {
-  const { login } = useApp();
+  const { login, lastAuthError } = useApp();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const displayedError = localError || lastAuthError;
+
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError(null);
+    e.preventDefault();
+    setLocalError(null);
 
-  if (!username.trim()) {
-    setError('يرجى إدخال اسم المستخدم');
-    return;
-  }
-
-  if (!password) {
-    setError('يرجى إدخال كلمة المرور');
-    return;
-  }
-
-  setIsLoading(true);
-
-  try {
-    const success = await login(
-      username.trim(),
-      password
-    );
-
-    if (!success) {
-      setError(
-        'بيانات الدخول غير صحيحة. تأكد من اسم المستخدم وكلمة المرور.'
-      );
+    if (!username.trim()) {
+      setLocalError('يرجى إدخال اسم المستخدم أو البريد الإلكتروني');
+      return;
     }
-  } finally {
-    setIsLoading(false);
-  }
-};
+
+    if (!password) {
+      setLocalError('يرجى إدخال كلمة المرور');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await login(username.trim(), password);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div
@@ -91,15 +84,15 @@ export const LoginView: React.FC = () => {
                   <span>تسجيل الدخول للنظام</span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  أدخل بيانات الحساب للمتابعة إلى لوحة التحكم
+                  أدخل اسم المستخدم أو البريد المسجل للمتابعة إلى لوحة التحكم
                 </p>
               </div>
             </div>
 
-            {error && (
+            {displayedError && (
               <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>{error}</span>
+                <span>{displayedError}</span>
               </div>
             )}
 
@@ -107,12 +100,16 @@ export const LoginView: React.FC = () => {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-[#0070CE]" />
-                  <span>اسم المستخدم:</span>
+                  <span>اسم المستخدم أو البريد الإلكتروني:</span>
                 </label>
                 <input
                   type="text"
-                 value={username}
-onChange={e => setUsername(e.target.value)}
+                  autoComplete="username"
+                  value={username}
+                  onChange={e => {
+                    setUsername(e.target.value);
+                    if (localError) setLocalError(null);
+                  }}
                   placeholder="admin"
                   className="w-full px-4 py-3 rounded-2xl bg-[#F8FAFD] border border-slate-200 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-[#0070CE] transition-all text-left font-mono"
                   required

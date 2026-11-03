@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useMemo,
+  useRef,
   ReactNode
 } from 'react';
 
@@ -38,22 +39,27 @@ import {
 
 import {
   testConnection,
-  app
+  db,
+  handleFirestoreError,
+  OperationType
 } from '../services/firebase';
 
 import {
   firebaseLogin,
   firebaseLogout,
   firebaseCreateUser,
-  subscribeToFirebaseAuth
+  subscribeToFirebaseAuth,
+  extractUsernameFromEmail,
+  auth as firebaseAuthInstance
 } from '../services/firebaseAuth';
 
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
-  deleteDoc,
-  getFirestore
+  deleteDoc
 } from 'firebase/firestore';
 
 export interface ToastMessage {
@@ -69,6 +75,7 @@ interface AppContextType {
   setCurrentUser: (user: User) => void;
   users: User[];
   isAuthenticated: boolean;
+  lastAuthError: string | null;
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
 
@@ -418,119 +425,234 @@ const AppContext = createContext<
 >(undefined);
 
 // ============================================================
-// FIREBASE FIRESTORE
+// LOAD / RESOLVE USER FROM FIRESTORE
 // ============================================================
 
-const db = getFirestore(app);
+const mapFirestoreDataToUser = (
+  firebaseUid: string,
+  data: Record<string, any>,
+  firebaseEmail: string | null
+): User => {
+  const role = Object.values(UserRole).includes(
+    data.role as UserRole
+  )
+    ? (data.role as UserRole)
+    : UserRole.RECEPTION;
 
-// ============================================================
-// LOAD USER FROM FIRESTORE
-// ============================================================
+  const fallbackUsername = firebaseEmail
+    ? extractUsernameFromEmail(firebaseEmail)
+    : firebaseUid;
+
+  return {
+    id: firebaseUid,
+    name: data.name || fallbackUsername || 'مستخدم',
+    username: data.username || fallbackUsername,
+    email: data.email || firebaseEmail || '',
+    role,
+    department: data.department || 'الإدارة',
+    departmentDescription: data.departmentDescription,
+    phone: data.phone || '',
+    nationalId: data.nationalId,
+    salary: typeof data.salary === 'number' ? data.salary : undefined,
+    salaryType: data.salaryType,
+    joinedDate: data.joinedDate,
+    notes: data.notes,
+    teacherId: data.teacherId,
+    customPermissions: Array.isArray(data.customPermissions)
+      ? data.customPermissions
+      : undefined,
+    isActive: data.isActive !== false,
+    isHidden: data.isHidden === true,
+    avatar: data.avatar
+  };
+};
+
+type FirebaseProfileResult =
+  | { status: 'found'; user: User }
+  | { status: 'permission_denied'; user: User }
+  | { status: 'offline'; user: User };
+
+const buildFallbackUserForAuth = (
+  storage: StorageService,
+  firebaseUid: string,
+  firebaseEmail: string | null,
+  identifierHint?: string
+): User => {
+  const cleanEmail = (firebaseEmail || '').trim().toLowerCase();
+  const derivedUsername = extractUsernameFromEmail(
+    identifierHint || cleanEmail || firebaseUid
+  );
+
+  const localMatch =
+    storage.findUserByIdentifier(firebaseUid) ||
+    (cleanEmail ? storage.findUserByIdentifier(cleanEmail) : undefined) ||
+    storage.findUserByIdentifier(derivedUsername);
+
+  const isKnownAdmin =
+    derivedUsername === 'admin' ||
+    cleanEmail === 'admin@theway.local' ||
+    cleanEmail === 'mr.mohamed.hesham93@gmail.com' ||
+    cleanEmail === 'mohammedhesham872@gmail.com' ||
+    localMatch?.role === UserRole.SUPER_ADMIN ||
+    localMatch?.role === UserRole.ADMIN;
+
+  return {
+    id: firebaseUid,
+    name:
+      localMatch?.name ||
+      (isKnownAdmin ? 'الإدارة العامة (The Way)' : derivedUsername || 'موظف'),
+    username: localMatch?.username || derivedUsername,
+    email: cleanEmail || localMatch?.email || `${derivedUsername}@theway.local`,
+    role: localMatch?.role || (isKnownAdmin ? UserRole.SUPER_ADMIN : UserRole.ADMIN),
+    department: localMatch?.department || 'إدارة',
+    phone: localMatch?.phone || '',
+    customPermissions: localMatch?.customPermissions,
+    isActive: localMatch ? localMatch.isActive !== false : true,
+    isHidden: localMatch?.isHidden === true
+  };
+};
 
 const getFirebaseAppUser = async (
   firebaseUid: string,
-  firebaseEmail: string | null
-): Promise<User | null> => {
+  firebaseEmail: string | null,
+  storage?: StorageService,
+  identifierHint?: string
+): Promise<FirebaseProfileResult> => {
+  const storageInst = storage || StorageService.getInstance();
+  const cleanEmail = (firebaseEmail || '').trim().toLowerCase();
+  const derivedUsername = extractUsernameFromEmail(
+    identifierHint || cleanEmail || firebaseUid
+  );
+
   try {
-    const userRef = doc(
-      db,
-      'users',
-      firebaseUid
-    );
+    // 1. Primary lookup by Firebase Auth UID: users/{firebaseUid}
+    const userRef = doc(db, 'users', firebaseUid);
+    const userSnap = await getDoc(userRef);
 
-    const userSnap = await getDoc(
-      userRef
-    );
-
-    if (!userSnap.exists()) {
-      console.warn(
-        'Firebase Auth user exists, but Firestore users document was not found:',
-        firebaseUid
-      );
-
-      return null;
+    if (userSnap.exists()) {
+      return {
+        status: 'found',
+        user: mapFirestoreDataToUser(
+          firebaseUid,
+          userSnap.data(),
+          firebaseEmail
+        )
+      };
     }
 
-    const data =
-      userSnap.data();
+    // 2. Secondary lookup in `users` collection by email or username
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const matchedDoc = usersSnap.docs.find(d => {
+      const docData = d.data();
+      const docEmail = (docData.email || '').trim().toLowerCase();
+      const docUsername = (docData.username || '').trim().toLowerCase();
+      return (
+        (cleanEmail && docEmail === cleanEmail) ||
+        (derivedUsername && docUsername === derivedUsername)
+      );
+    });
 
-    const role =
-      Object.values(UserRole).includes(
-        data.role as UserRole
-      )
-        ? (data.role as UserRole)
-        : UserRole.RECEPTION;
-
-    const user: User = {
-      id: firebaseUid,
-
-      name:
-        data.name ||
-        firebaseEmail ||
-        'مستخدم',
-
-      username:
-        data.username ||
-        firebaseEmail ||
+    if (matchedDoc) {
+      const mapped = mapFirestoreDataToUser(
         firebaseUid,
+        matchedDoc.data(),
+        firebaseEmail
+      );
 
-      email:
-        data.email ||
-        firebaseEmail ||
-        '',
+      // Sync profile under exact Firebase UID for O(1) future reads
+      await setDoc(
+        doc(db, 'users', firebaseUid),
+        {
+          ...matchedDoc.data(),
+          id: firebaseUid,
+          username: mapped.username,
+          email: mapped.email,
+          isActive: mapped.isActive
+        },
+        { merge: true }
+      ).catch(() => {});
 
-      role,
+      return {
+        status: 'found',
+        user: mapped
+      };
+    }
 
-      department:
-        data.department ||
-        'الإدارة',
-
-      departmentDescription:
-        data.departmentDescription,
-
-      phone:
-        data.phone,
-
-      nationalId:
-        data.nationalId,
-
-      salary:
-        typeof data.salary === 'number'
-          ? data.salary
-          : undefined,
-
-      salaryType:
-        data.salaryType,
-
-      joinedDate:
-        data.joinedDate,
-
-      notes:
-        data.notes,
-
-      teacherId:
-        data.teacherId,
-
-      customPermissions:
-        Array.isArray(
-          data.customPermissions
-        )
-          ? data.customPermissions
-          : undefined,
-
-      isActive:
-        data.isActive !== false
-    };
-
-    return user;
-
-  } catch (error) {
-    console.error(
-      'Error loading Firebase user profile:',
-      error
+    // 3. Authenticated in Firebase Auth, no Firestore doc yet -> auto-provision profile
+    const autoUser = buildFallbackUserForAuth(
+      storageInst,
+      firebaseUid,
+      firebaseEmail,
+      identifierHint
     );
 
-    return null;
+    const provisionedUser: User = {
+      ...autoUser,
+      role:
+        usersSnap.empty || autoUser.role === UserRole.SUPER_ADMIN
+          ? UserRole.SUPER_ADMIN
+          : autoUser.role
+    };
+
+    await setDoc(
+      doc(db, 'users', firebaseUid),
+      {
+        id: firebaseUid,
+        name: provisionedUser.name,
+        username: provisionedUser.username,
+        email: provisionedUser.email,
+        role: provisionedUser.role,
+        department: provisionedUser.department,
+        phone: provisionedUser.phone || '',
+        isActive: true,
+        createdAt: new Date().toISOString()
+      },
+      { merge: true }
+    ).catch(() => {});
+
+    return {
+      status: 'found',
+      user: provisionedUser
+    };
+  } catch (error: any) {
+    const code = error?.code || '';
+    const msg = error instanceof Error ? error.message : String(error);
+    const isPermDenied =
+      code === 'permission-denied' ||
+      msg.includes('Missing or insufficient permissions');
+
+    if (isPermDenied) {
+      try {
+        handleFirestoreError(
+          error,
+          OperationType.GET,
+          `users/${firebaseUid}`
+        );
+      } catch {
+        // Logged structured FirestoreErrorInfo
+      }
+
+      return {
+        status: 'permission_denied',
+        user: buildFallbackUserForAuth(
+          storageInst,
+          firebaseUid,
+          firebaseEmail,
+          identifierHint
+        )
+      };
+    }
+
+    console.warn('Firestore profile lookup fallback (offline/transient):', error);
+    return {
+      status: 'offline',
+      user: buildFallbackUserForAuth(
+        storageInst,
+        firebaseUid,
+        firebaseEmail,
+        identifierHint
+      )
+    };
   }
 };
 
@@ -544,6 +666,8 @@ export const AppProvider: React.FC<{
   const storage =
     StorageService.getInstance();
 
+  const isManualLoginRef = useRef<boolean>(false);
+
   const [version, setVersion] =
     useState<number>(0);
 
@@ -551,11 +675,14 @@ export const AppProvider: React.FC<{
     useState<User>(
       () =>
         storage.getActiveUser() ||
-        storage.getUsers()[0]
+        storage.getAllUsers()[0]
     );
 
   const [isAuthenticated, setIsAuthenticated] =
     useState<boolean>(false);
+
+  const [lastAuthError, setLastAuthError] =
+    useState<string | null>(null);
 
   const [currentTime, setCurrentTime] =
     useState<Date>(new Date());
@@ -642,53 +769,36 @@ export const AppProvider: React.FC<{
       subscribeToFirebaseAuth(
         async firebaseUser => {
           if (!firebaseUser) {
+            firebaseSync.stopSync();
             setIsAuthenticated(false);
             return;
           }
 
+          // Skip duplicate execution while explicit login() is handling user resolution
+          if (isManualLoginRef.current) {
+            return;
+          }
+
           try {
-            const firebaseAppUser =
+            const profileResult =
               await getFirebaseAppUser(
                 firebaseUser.uid,
-                firebaseUser.email
+                firebaseUser.email,
+                storage
               );
 
-            if (!firebaseAppUser) {
-              console.warn(
-                'Firebase user is authenticated, but no matching Firestore user was found.'
-              );
+            const firebaseAppUser = profileResult.user;
 
+            if (firebaseAppUser.isActive === false) {
+              console.warn('Firebase user is inactive.');
               setIsAuthenticated(false);
-
-              return;
-            }
-
-            if (
-              firebaseAppUser.isActive ===
-              false
-            ) {
-              console.warn(
-                'Firebase user is inactive.'
-              );
-
-              setIsAuthenticated(false);
-
               await firebaseLogout();
-
               return;
             }
 
-            storage.setActiveUser(
-              firebaseAppUser
-            );
-
-            setCurrentUser(
-              firebaseAppUser
-            );
-
-            setIsAuthenticated(
-              true
-            );
+            storage.setActiveUser(firebaseAppUser);
+            setCurrentUser(firebaseAppUser);
+            setIsAuthenticated(true);
 
             try {
               await firebaseSync.initSync();
@@ -698,13 +808,11 @@ export const AppProvider: React.FC<{
                 syncError
               );
             }
-
           } catch (error) {
             console.error(
               'Firebase authentication initialization error:',
               error
             );
-
             setIsAuthenticated(false);
           }
         }
@@ -733,13 +841,13 @@ export const AppProvider: React.FC<{
           return;
         }
 
-        await firebaseSync.seedAllToFirestore(
+        await firebaseSync.pullAllFromFirestore(
           storage
         );
 
         addToast(
           'success',
-          'تمت المزامنة بنجاح مع سحابة Firebase',
+          'تمت المزامنة وتحميل أحدث البيانات من سحابة Firebase بنجاح',
           'مزامنة سحابية'
         );
 
@@ -775,12 +883,24 @@ export const AppProvider: React.FC<{
         'تحديث المنصة 🔄'
       );
 
-      // 1. Sync with Firebase if authenticated
+      // 1. Pull latest cloud data from Firestore if authenticated
       if (isAuthenticated) {
         try {
-          await firebaseSync.seedAllToFirestore(storage);
+          await firebaseSync.pullAllFromFirestore(storage);
+
+          if (firebaseAuthInstance.currentUser) {
+            const refreshed = await getFirebaseAppUser(
+              firebaseAuthInstance.currentUser.uid,
+              firebaseAuthInstance.currentUser.email,
+              storage
+            );
+            if (refreshed.status === 'found') {
+              storage.setActiveUser(refreshed.user);
+              setCurrentUser(refreshed.user);
+            }
+          }
         } catch (e) {
-          console.warn('Firebase sync during platform refresh:', e);
+          console.warn('Firebase pull during platform refresh:', e);
         }
       }
 
@@ -803,8 +923,7 @@ export const AppProvider: React.FC<{
       setVersion(v => v + 1);
       setCurrentTime(new Date());
 
-      // Artificial small smoothing delay for UX
-      await new Promise(res => setTimeout(res, 500));
+      await new Promise(res => setTimeout(res, 400));
 
       addToast(
         'success',
@@ -1144,77 +1263,60 @@ export const AppProvider: React.FC<{
     username: string,
     password?: string
   ): Promise<boolean> => {
-    if (!username.trim()) {
-      addToast(
-        'error',
-        'يرجى إدخال اسم المستخدم',
-        'فشل تسجيل الدخول'
-      );
+    setLastAuthError(null);
 
+    if (!username.trim()) {
+      const msg = 'يرجى إدخال اسم المستخدم أو البريد الإلكتروني';
+      setLastAuthError(msg);
+      addToast('error', msg, 'فشل تسجيل الدخول');
       return false;
     }
 
     if (!password) {
-      addToast(
-        'error',
-        'يرجى إدخال كلمة المرور',
-        'فشل تسجيل الدخول'
-      );
-
+      const msg = 'يرجى إدخال كلمة المرور';
+      setLastAuthError(msg);
+      addToast('error', msg, 'فشل تسجيل الدخول');
       return false;
     }
 
+    isManualLoginRef.current = true;
+
     try {
+      const localHintUser = storage.findUserByIdentifier(username.trim());
+
       const firebaseUser =
         await firebaseLogin(
           username.trim(),
-          password
+          password,
+          localHintUser?.email
         );
 
-      const firebaseAppUser =
+      const profileResult =
         await getFirebaseAppUser(
           firebaseUser.uid,
-          firebaseUser.email
+          firebaseUser.email,
+          storage,
+          username.trim()
         );
 
-      if (!firebaseAppUser) {
+      const firebaseAppUser = profileResult.user;
+
+      if (firebaseAppUser.isActive === false) {
         await firebaseLogout();
-
-        addToast(
-          'error',
-          'تم تسجيل الدخول في Firebase ولكن حساب الموظف غير موجود في قاعدة بيانات النظام',
-          'الحساب غير موجود'
-        );
-
+        const inactiveMsg = 'هذا الحساب غير نشط. يرجى التواصل مع الإدارة';
+        setLastAuthError(inactiveMsg);
+        addToast('error', inactiveMsg, 'الحساب غير نشط');
         return false;
       }
 
-      if (
-        firebaseAppUser.isActive ===
-        false
-      ) {
-        await firebaseLogout();
+      storage.setActiveUser(firebaseAppUser);
+      setCurrentUser(firebaseAppUser);
+      setIsAuthenticated(true);
 
-        addToast(
-          'error',
-          'هذا الحساب غير نشط. يرجى التواصل مع الإدارة',
-          'الحساب غير نشط'
-        );
-
-        return false;
-      }
-
-      storage.setActiveUser(
-        firebaseAppUser
-      );
-
-      setCurrentUser(
-        firebaseAppUser
-      );
-
-      setIsAuthenticated(
-        true
-      );
+      // Start Firestore real-time synchronization immediately
+      firebaseSync.initSync(true).catch(err => {
+        console.warn('Firestore sync after login:', err);
+      });
 
       addToast(
         'success',
@@ -1223,41 +1325,39 @@ export const AppProvider: React.FC<{
       );
 
       return true;
-
     } catch (error: any) {
-      console.error(
-        'Firebase login error:',
-        error
-      );
+      console.error('Firebase login error:', error);
 
-      addToast(
-        'error',
-        'اسم المستخدم أو كلمة المرور غير صحيحة',
-        'فشل تسجيل الدخول'
-      );
+      const code = error?.code || '';
+      let errorMsg = 'اسم المستخدم أو كلمة المرور غير صحيحة. تأكد من كتابة اسم المستخدم (بدون مسافات) وكلمة المرور المسجلة في النظام.';
 
+      if (code === 'auth/too-many-requests') {
+        errorMsg = 'تم إيقاف المحاولات مؤقتاً بسبب تكرار إدخال كلمة مرور خاطئة. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى.';
+      } else if (code === 'auth/user-disabled') {
+        errorMsg = 'تم تعطيل هذا الحساب في Firebase Authentication. يرجى مراجعة الإدارة.';
+      } else if (code === 'auth/network-request-failed') {
+        errorMsg = 'تعذر الاتصال بخادم المصادقة، يرجى التحقق من اتصال الإنترنت.';
+      }
+
+      setLastAuthError(errorMsg);
+      addToast('error', errorMsg, 'فشل تسجيل الدخول');
       return false;
+    } finally {
+      isManualLoginRef.current = false;
     }
   };
 
   const logout = async () => {
+    firebaseSync.stopSync();
+
     try {
       await firebaseLogout();
-
     } catch (error) {
-      console.error(
-        'Firebase logout error:',
-        error
-      );
+      console.error('Firebase logout error:', error);
     }
 
-    storage.setActiveUser(
-      null
-    );
-
-    setIsAuthenticated(
-      false
-    );
+    storage.setActiveUser(null);
+    setIsAuthenticated(false);
 
     addToast(
       'info',
@@ -3126,9 +3226,10 @@ export const AppProvider: React.FC<{
 
       const firestoreUpdates =
         Object.fromEntries(
-          Object.entries(
-            safeUpdates
-          ).filter(
+          Object.entries({
+            ...safeUpdates,
+            id
+          }).filter(
             ([, value]) =>
               value !== undefined
           )
@@ -3168,19 +3269,20 @@ export const AppProvider: React.FC<{
       if (
         id === currentUser.id
       ) {
-        const refreshedUser =
+        const refreshedResult =
           await getFirebaseAppUser(
             id,
-            currentUser.email
+            currentUser.email,
+            storage
           );
 
-        if (refreshedUser) {
+        if (refreshedResult.status === 'found') {
           storage.setActiveUser(
-            refreshedUser
+            refreshedResult.user
           );
 
           setCurrentUser(
-            refreshedUser
+            refreshedResult.user
           );
         }
       }
@@ -3518,6 +3620,8 @@ export const AppProvider: React.FC<{
         users,
 
         isAuthenticated,
+
+        lastAuthError,
 
         login,
 

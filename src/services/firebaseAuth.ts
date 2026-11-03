@@ -18,21 +18,12 @@ export const auth = getAuth(app);
 
 /*
  * ============================================================
- * USERNAME → INTERNAL FIREBASE EMAIL
+ * USERNAME / EMAIL → FIREBASE AUTH EMAIL RESOLUTION
  * ============================================================
  *
- * المستخدم في التطبيق يتعامل مع Username فقط.
- *
- * Firebase Authentication يحتاج Email + Password،
- * لذلك نولّد Email داخلي ثابت من الـ Username.
- *
- * مثال:
- *
- * hesham
- * ↓
- * hesham@theway.local
- *
- * المستخدم لن يرى هذا البريد.
+ * يدعم تسجيل الدخول سواء كتب المستخدم:
+ * 1) اسم المستخدم فقط مثل: admin أو hesham -> يتحول إلى username@theway.local
+ * 2) البريد الكامل مثل: admin@theway.local أو بريد حقيقي مسجل في Firebase Auth
  */
 
 export const normalizeUsername = (
@@ -43,10 +34,56 @@ export const normalizeUsername = (
     .toLowerCase();
 };
 
-export const getFirebaseEmailFromUsername = (
-  username: string
+export const extractUsernameFromEmail = (
+  emailOrUsername: string
 ): string => {
-  return `${normalizeUsername(username)}@theway.local`;
+  const clean = normalizeUsername(emailOrUsername);
+  if (clean.includes('@')) {
+    return clean.split('@')[0] || clean;
+  }
+  return clean;
+};
+
+export const getFirebaseEmailFromUsername = (
+  usernameOrEmail: string
+): string => {
+  const clean = normalizeUsername(usernameOrEmail);
+  if (clean.includes('@')) {
+    return clean;
+  }
+  return `${clean}@theway.local`;
+};
+
+export const getCandidateFirebaseEmails = (
+  identifier: string,
+  knownUserEmail?: string
+): string[] => {
+  const clean = normalizeUsername(identifier);
+  const candidates: string[] = [];
+
+  const addCandidate = (email?: string) => {
+    if (!email) return;
+    const trimmed = email.trim().toLowerCase();
+    if (trimmed && trimmed.includes('@') && !candidates.includes(trimmed)) {
+      candidates.push(trimmed);
+    }
+  };
+
+  if (clean.includes('@')) {
+    addCandidate(clean);
+    const localPart = clean.split('@')[0];
+    if (localPart) {
+      addCandidate(`${localPart}@theway.local`);
+    }
+    addCandidate(knownUserEmail);
+  } else {
+    addCandidate(`${clean}@theway.local`);
+    addCandidate(knownUserEmail);
+    addCandidate(`${clean}@theway-center.ae`);
+    addCandidate(`${clean}@theway.com`);
+  }
+
+  return candidates;
 };
 
 /*
@@ -54,7 +91,7 @@ export const getFirebaseEmailFromUsername = (
  * SECONDARY FIREBASE APP
  * ============================================================
  *
- * لإنشاء حسابات الموظفين بدون تسجيل خروج الأدمن.
+ * لإنشاء حسابات الموظفين بدون تسجيل خروج الأدمن الحالي.
  */
 
 const secondaryApp =
@@ -71,9 +108,6 @@ const secondaryApp =
 const secondaryAuth =
   getAuth(secondaryApp);
 
-/*
- * لا نحتفظ بجلسة الموظف الجديد.
- */
 void setPersistence(
   secondaryAuth,
   inMemoryPersistence
@@ -83,43 +117,52 @@ void setPersistence(
  * ============================================================
  * LOGIN
  * ============================================================
- *
- * الدخول يتم باستخدام:
- *
- * Username + Password
- *
- * وليس Email + Password.
  */
 
 export const firebaseLogin = async (
-  username: string,
-  password: string
+  identifier: string,
+  password: string,
+  knownUserEmail?: string
 ): Promise<FirebaseUser> => {
-  const firebaseEmail =
-    getFirebaseEmailFromUsername(
-      username
-    );
+  const candidates = getCandidateFirebaseEmails(
+    identifier,
+    knownUserEmail
+  );
 
-  const credential =
-    await signInWithEmailAndPassword(
-      auth,
-      firebaseEmail,
-      password
-    );
+  let lastError: unknown = null;
 
-  return credential.user;
+  for (const emailCandidate of candidates) {
+    try {
+      const credential =
+        await signInWithEmailAndPassword(
+          auth,
+          emailCandidate,
+          password
+        );
+
+      return credential.user;
+    } catch (err: any) {
+      lastError = err;
+      const code = err?.code || '';
+      // If account is disabled or rate-limited or network failed, stop immediately
+      if (
+        code === 'auth/user-disabled' ||
+        code === 'auth/too-many-requests' ||
+        code === 'auth/network-request-failed'
+      ) {
+        throw err;
+      }
+      // Otherwise (auth/invalid-credential, auth/user-not-found, auth/invalid-email), try next candidate
+    }
+  }
+
+  throw lastError || new Error('auth/invalid-credential');
 };
 
 /*
  * ============================================================
  * CREATE USER
  * ============================================================
- *
- * إنشاء الموظف باستخدام:
- *
- * Username + Password
- *
- * ويتم تحويل Username إلى Email داخلي لـ Firebase.
  */
 
 export const firebaseCreateUser = async (
@@ -138,9 +181,6 @@ export const firebaseCreateUser = async (
       password
     );
 
-  /*
-   * إغلاق جلسة الـ secondary auth فورًا.
-   */
   await signOut(
     secondaryAuth
   );

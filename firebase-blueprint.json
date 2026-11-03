@@ -10,7 +10,6 @@
         "name": { "type": "string", "maxLength": 128 },
         "phone": { "type": "string", "maxLength": 32 },
         "grade": { "type": "string", "maxLength": 64 },
-        "track": { "type": "string", "maxLength": 64 },
         "school": { "type": "string", "maxLength": 128 },
         "status": { "type": "string", "enum": ["active", "inactive", "suspended", "graduated", "archived"] },
         "registrationDate": { "type": "string", "maxLength": 64 },
@@ -28,12 +27,14 @@
         "name": { "type": "string", "maxLength": 128 },
         "phone": { "type": "string", "maxLength": 32 },
         "email": { "type": "string", "maxLength": 128 },
-        "rateType": { "type": "string", "enum": ["percentage", "hourly", "fixed_per_student"] },
-        "defaultRate": { "type": "number" },
-        "status": { "type": "string", "maxLength": 32 },
-        "color": { "type": "string", "maxLength": 32 }
+        "specialization": { "type": "string", "maxLength": 128 },
+        "department": { "type": "string", "maxLength": 64 },
+        "hourlyRate": { "type": "number" },
+        "sessionRate": { "type": "number" },
+        "joinedDate": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "maxLength": 32 }
       },
-      "required": ["id", "code", "name", "phone", "status"]
+      "required": ["id", "code", "name"]
     },
     "Subject": {
       "title": "Subject",
@@ -44,9 +45,10 @@
         "code": { "type": "string", "maxLength": 64 },
         "name": { "type": "string", "maxLength": 128 },
         "category": { "type": "string", "maxLength": 64 },
-        "defaultSessionPrice": { "type": "number" }
+        "defaultSessionPrice": { "type": "number" },
+        "isActive": { "type": "boolean" }
       },
-      "required": ["id", "code", "name", "defaultSessionPrice"]
+      "required": ["id", "code", "name"]
     },
     "Room": {
       "title": "Room",
@@ -57,7 +59,7 @@
         "name": { "type": "string", "maxLength": 128 },
         "capacity": { "type": "number" },
         "type": { "type": "string", "maxLength": 64 },
-        "isAvailable": { "type": "boolean" }
+        "isActive": { "type": "boolean" }
       },
       "required": ["id", "name", "capacity"]
     },
@@ -68,18 +70,17 @@
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
         "sessionCode": { "type": "string", "maxLength": 64 },
-        "studentId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
         "teacherId": { "type": "string", "maxLength": 128 },
         "subjectId": { "type": "string", "maxLength": 128 },
         "roomId": { "type": "string", "maxLength": 128 },
         "date": { "type": "string", "maxLength": 32 },
         "startTime": { "type": "string", "maxLength": 16 },
         "endTime": { "type": "string", "maxLength": 16 },
-        "durationMinutes": { "type": "number" },
         "status": { "type": "string", "maxLength": 32 },
         "type": { "type": "string", "maxLength": 32 }
       },
-      "required": ["id", "teacherId", "subjectId", "roomId", "date", "startTime", "endTime", "status"]
+      "required": ["id", "teacherId", "subjectId", "date", "startTime", "endTime", "status"]
     },
     "AttendanceRecord": {
       "title": "AttendanceRecord",
@@ -90,11 +91,10 @@
         "sessionId": { "type": "string", "maxLength": 128 },
         "studentId": { "type": "string", "maxLength": 128 },
         "teacherId": { "type": "string", "maxLength": 128 },
-        "subjectId": { "type": "string", "maxLength": 128 },
         "date": { "type": "string", "maxLength": 32 },
         "status": { "type": "string", "maxLength": 32 },
-        "recordedAt": { "type": "string", "maxLength": 64 },
-        "recordedBy": { "type": "string", "maxLength": 128 }
+        "markedByUserId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "sessionId", "studentId", "date", "status"]
     },
@@ -106,17 +106,16 @@
         "id": { "type": "string", "maxLength": 128 },
         "contractNumber": { "type": "string", "maxLength": 64 },
         "studentId": { "type": "string", "maxLength": 128 },
-        "teacherId": { "type": "string", "maxLength": 128 },
-        "subjectId": { "type": "string", "maxLength": 128 },
         "totalSessions": { "type": "number" },
         "usedSessions": { "type": "number" },
+        "totalPrice": { "type": "number" },
         "packagePrice": { "type": "number" },
         "paidAmount": { "type": "number" },
         "status": { "type": "string", "maxLength": 32 },
         "startDate": { "type": "string", "maxLength": 32 },
         "endDate": { "type": "string", "maxLength": 32 }
       },
-      "required": ["id", "contractNumber", "studentId", "totalSessions", "packagePrice", "status"]
+      "required": ["id", "contractNumber", "studentId", "totalSessions", "status"]
     },
     "Payment": {
       "title": "Payment",
@@ -129,7 +128,7 @@
         "amount": { "type": "number" },
         "paymentMethod": { "type": "string", "maxLength": 32 },
         "date": { "type": "string", "maxLength": 32 },
-        "receivedBy": { "type": "string", "maxLength": 128 }
+        "collectedByUserId": { "type": "string", "maxLength": 128 }
       },
       "required": ["id", "receiptNumber", "studentId", "amount", "paymentMethod", "date"]
     },
@@ -142,10 +141,9 @@
         "centerName": { "type": "string", "maxLength": 128 },
         "phone": { "type": "string", "maxLength": 32 },
         "currency": { "type": "string", "maxLength": 16 },
-        "taxNumber": { "type": "string", "maxLength": 64 },
         "address": { "type": "string", "maxLength": 256 }
       },
-      "required": ["id", "centerName", "currency"]
+      "required": ["centerName", "currency"]
     },
     "AuditLog": {
       "title": "AuditLog",
@@ -160,11 +158,9 @@
         "entityId": { "type": "string", "maxLength": 128 },
         "entityName": { "type": "string", "maxLength": 128 },
         "timestamp": { "type": "string", "maxLength": 64 },
-        "details": { "type": "string", "maxLength": 1024 },
-        "previousValue": { "type": "string", "maxLength": 1024 },
-        "newValue": { "type": "string", "maxLength": 1024 }
+        "details": { "type": "string", "maxLength": 1024 }
       },
-      "required": ["id", "userId", "action", "entityType", "timestamp"]
+      "required": ["id", "userId", "action", "entityType"]
     },
     "Notification": {
       "title": "Notification",
@@ -179,17 +175,17 @@
         "isRead": { "type": "boolean" },
         "priority": { "type": "string", "maxLength": 16 }
       },
-      "required": ["id", "type", "title", "date", "isRead"]
+      "required": ["id", "type", "title"]
     },
     "TeacherAssignment": {
       "title": "TeacherAssignment",
-      "description": "Assignment of teacher to subject and grade",
+      "description": "Assignment of teacher to student and subject",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
         "teacherId": { "type": "string", "maxLength": 128 },
-        "subjectId": { "type": "string", "maxLength": 128 },
-        "gradeLevel": { "type": "string", "maxLength": 64 }
+        "subjectId": { "type": "string", "maxLength": 128 }
       },
       "required": ["id", "teacherId", "subjectId"]
     },
@@ -204,7 +200,7 @@
         "amount": { "type": "number" },
         "date": { "type": "string", "maxLength": 32 }
       },
-      "required": ["id", "payoutNumber", "teacherId", "amount", "date"]
+      "required": ["id", "teacherId", "amount"]
     },
     "User": {
       "title": "User",
@@ -216,9 +212,11 @@
         "username": { "type": "string", "maxLength": 128 },
         "email": { "type": "string", "maxLength": 128 },
         "role": { "type": "string", "maxLength": 64 },
+        "department": { "type": "string", "maxLength": 64 },
+        "phone": { "type": "string", "maxLength": 32 },
         "isActive": { "type": "boolean" }
       },
-      "required": ["id", "name", "username", "role", "isActive"]
+      "required": ["name", "role"]
     }
   },
   "firestore": {
