@@ -4,6 +4,7 @@ import {
   Mail,
   ArrowRight,
   AlertCircle,
+  CheckCircle2,
   KeyRound,
   Eye,
   EyeOff
@@ -13,19 +14,27 @@ import { TheWayLogo } from '../common/TheWayLogo';
 import { InstallAppButton } from '../common/InstallAppPrompt';
 
 export const LoginView: React.FC = () => {
-  const { login, lastAuthError } = useApp();
+  const {
+    login,
+    lastAuthError,
+    clearAuthError,
+    requestPasswordReset
+  } = useApp();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [resetFeedback, setResetFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const displayedError = localError || lastAuthError;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setResetFeedback(null);
 
     if (!username.trim()) {
       setLocalError('يرجى إدخال اسم المستخدم أو البريد الإلكتروني');
@@ -43,6 +52,20 @@ export const LoginView: React.FC = () => {
       await login(username.trim(), password);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setLocalError(null);
+    clearAuthError();
+    setResetFeedback(null);
+    setIsResetting(true);
+
+    try {
+      const result = await requestPasswordReset(username);
+      setResetFeedback(result);
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -84,15 +107,32 @@ export const LoginView: React.FC = () => {
                   <span>تسجيل الدخول للنظام</span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  أدخل اسم المستخدم أو البريد المسجل للمتابعة إلى لوحة التحكم
+                  أدخل اسم المستخدم للموظف أو البريد الإلكتروني المسجل للمتابعة إلى لوحة التحكم
                 </p>
               </div>
             </div>
 
             {displayedError && (
-              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 leading-relaxed">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
                 <span>{displayedError}</span>
+              </div>
+            )}
+
+            {resetFeedback && (
+              <div
+                className={`p-3.5 rounded-2xl text-xs flex items-start gap-2.5 leading-relaxed border ${
+                  resetFeedback.ok
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}
+              >
+                {resetFeedback.ok ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                )}
+                <span>{resetFeedback.message}</span>
               </div>
             )}
 
@@ -105,27 +145,46 @@ export const LoginView: React.FC = () => {
                 <input
                   type="text"
                   autoComplete="username"
+                  dir="ltr"
                   value={username}
                   onChange={e => {
                     setUsername(e.target.value);
                     if (localError) setLocalError(null);
+                    if (lastAuthError) clearAuthError();
+                    if (resetFeedback) setResetFeedback(null);
                   }}
-                  placeholder="admin"
+                  placeholder="username أو email@example.com"
                   className="w-full px-4 py-3 rounded-2xl bg-[#F8FAFD] border border-slate-200 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-[#0070CE] transition-all text-left font-mono"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-[#0070CE]" />
-                  <span>كلمة المرور (Password):</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-[#0070CE]" />
+                    <span>كلمة المرور (Password):</span>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isResetting}
+                    onClick={handlePasswordReset}
+                    className="text-[11px] font-bold text-[#0070CE] hover:text-[#004D99] hover:underline transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isResetting ? 'جاري الإرسال...' : 'نسيت كلمة المرور؟'}
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    dir="ltr"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => {
+                      setPassword(e.target.value);
+                      if (localError) setLocalError(null);
+                      if (lastAuthError) clearAuthError();
+                    }}
                     placeholder="••••••••"
                     className="w-full pl-11 pr-4 py-3 rounded-2xl bg-[#F8FAFD] border border-slate-200 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-[#0070CE] transition-all text-left font-mono"
                     required

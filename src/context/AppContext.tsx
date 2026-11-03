@@ -48,6 +48,7 @@ import {
   firebaseLogin,
   firebaseLogout,
   firebaseCreateUser,
+  firebaseSendPasswordReset,
   subscribeToFirebaseAuth,
   extractUsernameFromEmail,
   auth as firebaseAuthInstance
@@ -76,7 +77,9 @@ interface AppContextType {
   users: User[];
   isAuthenticated: boolean;
   lastAuthError: string | null;
+  clearAuthError: () => void;
   login: (username: string, password?: string) => Promise<boolean>;
+  requestPasswordReset: (identifier: string) => Promise<{ ok: boolean; message: string }>;
   logout: () => Promise<void>;
 
   // Settings & Time
@@ -428,25 +431,39 @@ const AppContext = createContext<
 // LOAD / RESOLVE USER FROM FIRESTORE
 // ============================================================
 
+const isTruthyFlag = (val: unknown): boolean =>
+  val === true ||
+  (typeof val === 'string' && val.trim().toLowerCase() === 'true');
+
+const isFalsyFlag = (val: unknown): boolean =>
+  val === false ||
+  (typeof val === 'string' && val.trim().toLowerCase() === 'false');
+
 const mapFirestoreDataToUser = (
   firebaseUid: string,
   data: Record<string, any>,
   firebaseEmail: string | null
 ): User => {
+  const normalizedRoleStr =
+    typeof data.role === 'string' ? data.role.trim().toUpperCase() : '';
   const role = Object.values(UserRole).includes(
-    data.role as UserRole
+    normalizedRoleStr as UserRole
   )
-    ? (data.role as UserRole)
+    ? (normalizedRoleStr as UserRole)
     : UserRole.RECEPTION;
 
   const fallbackUsername = firebaseEmail
     ? extractUsernameFromEmail(firebaseEmail)
     : firebaseUid;
 
+  const resolvedUsername = (data.username || fallbackUsername || '')
+    .trim()
+    .toLowerCase();
+
   return {
     id: firebaseUid,
     name: data.name || fallbackUsername || 'مستخدم',
-    username: data.username || fallbackUsername,
+    username: resolvedUsername || fallbackUsername,
     email: data.email || firebaseEmail || '',
     role,
     department: data.department || 'الإدارة',
@@ -461,8 +478,10 @@ const mapFirestoreDataToUser = (
     customPermissions: Array.isArray(data.customPermissions)
       ? data.customPermissions
       : undefined,
-    isActive: data.isActive !== false,
-    isHidden: data.isHidden === true,
+    isActive: !isFalsyFlag(data.isActive),
+    isHidden:
+      isTruthyFlag(data.isHidden) ||
+      resolvedUsername === 'hesham',
     avatar: data.avatar
   };
 };
@@ -488,11 +507,16 @@ const buildFallbackUserForAuth = (
     (cleanEmail ? storage.findUserByIdentifier(cleanEmail) : undefined) ||
     storage.findUserByIdentifier(derivedUsername);
 
+  const isHeshamSuperAdmin =
+    derivedUsername === 'hesham' ||
+    cleanEmail === 'hesham@theway.local' ||
+    cleanEmail === 'mr.mohamed.hesham93@gmail.com' ||
+    cleanEmail === 'mohammedhesham872@gmail.com';
+
   const isKnownAdmin =
+    isHeshamSuperAdmin ||
     derivedUsername === 'admin' ||
     cleanEmail === 'admin@theway.local' ||
-    cleanEmail === 'mr.mohamed.hesham93@gmail.com' ||
-    cleanEmail === 'mohammedhesham872@gmail.com' ||
     localMatch?.role === UserRole.SUPER_ADMIN ||
     localMatch?.role === UserRole.ADMIN;
 
@@ -500,15 +524,19 @@ const buildFallbackUserForAuth = (
     id: firebaseUid,
     name:
       localMatch?.name ||
-      (isKnownAdmin ? 'الإدارة العامة (The Way)' : derivedUsername || 'موظف'),
+      (isHeshamSuperAdmin
+        ? 'Mohammed Hesham'
+        : isKnownAdmin
+          ? 'الإدارة العامة (The Way)'
+          : derivedUsername || 'موظف'),
     username: localMatch?.username || derivedUsername,
     email: cleanEmail || localMatch?.email || `${derivedUsername}@theway.local`,
     role: localMatch?.role || (isKnownAdmin ? UserRole.SUPER_ADMIN : UserRole.ADMIN),
-    department: localMatch?.department || 'إدارة',
+    department: localMatch?.department || 'الإدارة',
     phone: localMatch?.phone || '',
     customPermissions: localMatch?.customPermissions,
-    isActive: localMatch ? localMatch.isActive !== false : true,
-    isHidden: localMatch?.isHidden === true
+    isActive: localMatch ? !isFalsyFlag(localMatch.isActive) : true,
+    isHidden: isHeshamSuperAdmin ? true : isTruthyFlag(localMatch?.isHidden)
   };
 };
 
@@ -567,10 +595,16 @@ const getFirebaseAppUser = async (
           id: firebaseUid,
           username: mapped.username,
           email: mapped.email,
-          isActive: mapped.isActive
+          isActive: mapped.isActive,
+          isHidden: mapped.isHidden === true
         },
         { merge: true }
       ).catch(() => {});
+
+      // Clean up stale document if UID was re-linked
+      if (matchedDoc.id !== firebaseUid) {
+        await deleteDoc(doc(db, 'users', matchedDoc.id)).catch(() => {});
+      }
 
       return {
         status: 'found',
@@ -605,6 +639,7 @@ const getFirebaseAppUser = async (
         department: provisionedUser.department,
         phone: provisionedUser.phone || '',
         isActive: true,
+        ...(provisionedUser.isHidden ? { isHidden: true } : {}),
         createdAt: new Date().toISOString()
       },
       { merge: true }
@@ -1326,10 +1361,8 @@ export const AppProvider: React.FC<{
 
       return true;
     } catch (error: any) {
-      console.error('Firebase login error:', error);
-
       const code = error?.code || '';
-      let errorMsg = 'اسم المستخدم أو كلمة المرور غير صحيحة. تأكد من كتابة اسم المستخدم (بدون مسافات) وكلمة المرور المسجلة في النظام.';
+      let errorMsg = 'اسم المستخدم أو كلمة المرور غير صحيحة. تأكد من إدخال اسم المستخدم أو البريد الإلكتروني المسجل وكلمة المرور الصحيحة.';
 
       if (code === 'auth/too-many-requests') {
         errorMsg = 'تم إيقاف المحاولات مؤقتاً بسبب تكرار إدخال كلمة مرور خاطئة. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى.';
@@ -1337,6 +1370,13 @@ export const AppProvider: React.FC<{
         errorMsg = 'تم تعطيل هذا الحساب في Firebase Authentication. يرجى مراجعة الإدارة.';
       } else if (code === 'auth/network-request-failed') {
         errorMsg = 'تعذر الاتصال بخادم المصادقة، يرجى التحقق من اتصال الإنترنت.';
+      } else if (
+        code !== 'auth/invalid-credential' &&
+        code !== 'auth/wrong-password' &&
+        code !== 'auth/user-not-found' &&
+        code !== 'auth/invalid-email'
+      ) {
+        console.warn('Auth sign-in rejected:', code || error?.message);
       }
 
       setLastAuthError(errorMsg);
@@ -1344,6 +1384,55 @@ export const AppProvider: React.FC<{
       return false;
     } finally {
       isManualLoginRef.current = false;
+    }
+  };
+
+  const clearAuthError = () => {
+    setLastAuthError(null);
+  };
+
+  const requestPasswordReset = async (
+    identifier: string
+  ): Promise<{ ok: boolean; message: string }> => {
+    const clean = identifier.trim().toLowerCase();
+    if (!clean) {
+      return {
+        ok: false,
+        message: 'يرجى كتابة البريد الإلكتروني الحقيقي في حقل الدخول أولاً لإرسال رابط الاستعادة.'
+      };
+    }
+
+    if (!clean.includes('@') || clean.endsWith('@theway.local')) {
+      return {
+        ok: false,
+        message: 'حسابات الموظفين الداخلية (اسم المستخدم بدون بريد إلكتروني خارجي) تُدار كلمات مرورها عبر مدير المركز. أما إذا كان حسابك مسجلاً ببريد حقيقي (مثل Gmail) فاكتب البريد الإلكتروني كاملاً ثم اضغط استعادة كلمة المرور.'
+      };
+    }
+
+    try {
+      await firebaseSendPasswordReset(clean);
+      return {
+        ok: true,
+        message: `تم إرسال رابط إعادة تعيين كلمة المرور إلى (${clean}). يرجى فحص البريد الوارد أو الرسائل غير المرغوب فيها (Spam).`
+      };
+    } catch (err: any) {
+      const code = err?.code || '';
+      if (code === 'auth/invalid-email') {
+        return {
+          ok: false,
+          message: 'صيغة البريد الإلكتروني غير صحيحة، يرجى التحقق منها.'
+        };
+      }
+      if (code === 'auth/too-many-requests') {
+        return {
+          ok: false,
+          message: 'تم إرسال عدة طلبات مؤخراً، يرجى الانتظار قليلاً قبل المحاولة مجدداً.'
+        };
+      }
+      return {
+        ok: false,
+        message: 'تعذر إرسال رابط الاستعادة حالياً، يرجى التحقق من البريد الإلكتروني واتصال الإنترنت.'
+      };
     }
   };
 
@@ -3049,7 +3138,7 @@ export const AppProvider: React.FC<{
       const firebaseUser =
         await firebaseCreateUser(
           data.username,
-          data.password || '123'
+          data.password || '123456'
         );
 
       const firebaseUid =
@@ -3128,9 +3217,9 @@ export const AppProvider: React.FC<{
       return created;
 
     } catch (error: any) {
-      console.error(
-        'Error creating Firebase employee account:',
-        error
+      console.warn(
+        'Warning creating Firebase employee account:',
+        error?.code || error?.message
       );
 
       let message =
@@ -3623,7 +3712,11 @@ export const AppProvider: React.FC<{
 
         lastAuthError,
 
+        clearAuthError,
+
         login,
+
+        requestPasswordReset,
 
         logout,
 

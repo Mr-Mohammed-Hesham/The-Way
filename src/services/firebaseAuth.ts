@@ -3,6 +3,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
@@ -15,6 +16,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { app } from './firebase';
 
 export const auth = getAuth(app);
+
+const INVISIBLE_DIR_MARKS_REGEX = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
 
 /*
  * ============================================================
@@ -30,7 +33,9 @@ export const normalizeUsername = (
   username: string
 ): string => {
   return username
+    .replace(INVISIBLE_DIR_MARKS_REGEX, '')
     .trim()
+    .replace(/\s+/g, '')
     .toLowerCase();
 };
 
@@ -63,7 +68,10 @@ export const getCandidateFirebaseEmails = (
 
   const addCandidate = (email?: string) => {
     if (!email) return;
-    const trimmed = email.trim().toLowerCase();
+    const trimmed = email
+      .replace(INVISIBLE_DIR_MARKS_REGEX, '')
+      .trim()
+      .toLowerCase();
     if (trimmed && trimmed.includes('@') && !candidates.includes(trimmed)) {
       candidates.push(trimmed);
     }
@@ -74,12 +82,14 @@ export const getCandidateFirebaseEmails = (
     const localPart = clean.split('@')[0];
     if (localPart) {
       addCandidate(`${localPart}@theway.local`);
+      addCandidate(`${localPart}@theway-center.ae`);
     }
     addCandidate(knownUserEmail);
-  } else {
+  } else if (clean) {
     addCandidate(`${clean}@theway.local`);
     addCandidate(knownUserEmail);
     addCandidate(`${clean}@theway-center.ae`);
+    addCandidate(`${clean}@gmail.com`);
     addCandidate(`${clean}@theway.com`);
   }
 
@@ -129,34 +139,59 @@ export const firebaseLogin = async (
     knownUserEmail
   );
 
+  // Build password candidates: exact password first, then stripped of accidental RTL marks / outer spaces
+  const passwordCandidates: string[] = [password];
+  const cleanedPassword = password
+    .replace(INVISIBLE_DIR_MARKS_REGEX, '')
+    .trim();
+  if (cleanedPassword && cleanedPassword !== password) {
+    passwordCandidates.push(cleanedPassword);
+  }
+
   let lastError: unknown = null;
 
-  for (const emailCandidate of candidates) {
-    try {
-      const credential =
-        await signInWithEmailAndPassword(
-          auth,
-          emailCandidate,
-          password
-        );
+  for (const pwd of passwordCandidates) {
+    for (const emailCandidate of candidates) {
+      try {
+        const credential =
+          await signInWithEmailAndPassword(
+            auth,
+            emailCandidate,
+            pwd
+          );
 
-      return credential.user;
-    } catch (err: any) {
-      lastError = err;
-      const code = err?.code || '';
-      // If account is disabled or rate-limited or network failed, stop immediately
-      if (
-        code === 'auth/user-disabled' ||
-        code === 'auth/too-many-requests' ||
-        code === 'auth/network-request-failed'
-      ) {
-        throw err;
+        return credential.user;
+      } catch (err: any) {
+        lastError = err;
+        const code = err?.code || '';
+        if (
+          code === 'auth/user-disabled' ||
+          code === 'auth/too-many-requests' ||
+          code === 'auth/network-request-failed'
+        ) {
+          throw err;
+        }
       }
-      // Otherwise (auth/invalid-credential, auth/user-not-found, auth/invalid-email), try next candidate
     }
   }
 
   throw lastError || new Error('auth/invalid-credential');
+};
+
+/*
+ * ============================================================
+ * PASSWORD RESET (FOR REAL EMAIL ACCOUNTS)
+ * ============================================================
+ */
+
+export const firebaseSendPasswordReset = async (
+  email: string
+): Promise<void> => {
+  const cleanEmail = email
+    .replace(INVISIBLE_DIR_MARKS_REGEX, '')
+    .trim()
+    .toLowerCase();
+  await sendPasswordResetEmail(auth, cleanEmail);
 };
 
 /*

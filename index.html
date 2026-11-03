@@ -134,10 +134,7 @@
           navigator.serviceWorker
             .register(swPath)
             .then((registration) => {
-              console.log(
-                'The Way ServiceWorker registered successfully:',
-                registration.scope
-              );
+              registration.update().catch(() => {});
             })
             .catch(() => {
               navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -197,4 +194,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-```

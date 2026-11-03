@@ -23,6 +23,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'admin@theway.local' ||
+        request.auth.token.email == 'hesham@theway.local' ||
         (
           request.auth.token.email_verified == true && (
             request.auth.token.email == 'mr.mohamed.hesham93@gmail.com' ||

@@ -224,60 +224,64 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
    const generatedEmail = `${username.trim().toLowerCase()}@theway.local`;
     const numericSalary = salary ? parseFloat(salary) : 0;
 
-    if (userToEdit) {
-      updateUser(userToEdit.id, {
-        name: name.trim(),
-        username: username.trim().toLowerCase(),
-        password: password.trim(),
-        email: generatedEmail,
-        phone: phone.trim(),
-        nationalId: nationalId.trim(),
-        salary: numericSalary,
-        salaryType,
-        joinedDate,
-        notes: notes.trim(),
-        department,
-        role: userToEdit.role === UserRole.SUPER_ADMIN ? UserRole.SUPER_ADMIN : selectedMeta.role,
-        departmentDescription: selectedMeta.desc,
-        teacherId: department === 'مدرسين' ? teacherId || undefined : undefined,
-        isActive,
-        customPermissions
-      });
-      addToast({
-        type: 'success',
-        title: 'تم حفظ وتحديث صلاحيات الموظف ✓',
-        message: `تم تحديث بيانات وصلاحيات ${name.trim()} (${customPermissions.length} قسم مصرح)`
-      });
-    } else {
-      await addUser({
-  name: name.trim(),
-  username: username.trim().toLowerCase(),
-  password: password.trim(),
-  email: generatedEmail,
-  phone: phone.trim(),
-  nationalId: nationalId.trim(),
-  salary: numericSalary,
-  salaryType,
-  joinedDate,
-  notes: notes.trim(),
-  department,
-  role: selectedMeta.role,
-  departmentDescription: selectedMeta.desc,
-  teacherId:
-    department === 'مدرسين'
-      ? teacherId || undefined
-      : undefined,
-  isActive,
-  customPermissions
-});
-      addToast({
-        type: 'success',
-        title: 'تم إنشاء حساب الموظف بنجاح ✓',
-        message: `تم إضافة (${username.trim()}) في قسم (${department}) مع ${customPermissions.length} صلاحية مخصصة`
-      });
-    }
+    try {
+      if (userToEdit) {
+        await updateUser(userToEdit.id, {
+          name: name.trim(),
+          username: username.trim().toLowerCase(),
+          password: password.trim(),
+          email: generatedEmail,
+          phone: phone.trim(),
+          nationalId: nationalId.trim(),
+          salary: numericSalary,
+          salaryType,
+          joinedDate,
+          notes: notes.trim(),
+          department,
+          role: userToEdit.role === UserRole.SUPER_ADMIN ? UserRole.SUPER_ADMIN : selectedMeta.role,
+          departmentDescription: selectedMeta.desc,
+          teacherId: department === 'مدرسين' ? teacherId || undefined : undefined,
+          isActive,
+          customPermissions
+        });
+        addToast({
+          type: 'success',
+          title: 'تم حفظ وتحديث صلاحيات الموظف ✓',
+          message: `تم تحديث بيانات وصلاحيات ${name.trim()} (${customPermissions.length} قسم مصرح)`
+        });
+      } else {
+        await addUser({
+          name: name.trim(),
+          username: username.trim().toLowerCase(),
+          password: password.trim(),
+          email: generatedEmail,
+          phone: phone.trim(),
+          nationalId: nationalId.trim(),
+          salary: numericSalary,
+          salaryType,
+          joinedDate,
+          notes: notes.trim(),
+          department,
+          role: selectedMeta.role,
+          departmentDescription: selectedMeta.desc,
+          teacherId:
+            department === 'مدرسين'
+              ? teacherId || undefined
+              : undefined,
+          isActive,
+          customPermissions
+        });
+        addToast({
+          type: 'success',
+          title: 'تم إنشاء حساب الموظف بنجاح ✓',
+          message: `تم إضافة (${username.trim()}) في قسم (${department}) مع ${customPermissions.length} صلاحية مخصصة`
+        });
+      }
 
-    onClose();
+      onClose();
+    } catch {
+      // Error toast is already displayed by AppContext
+    }
   };
 
   return (
