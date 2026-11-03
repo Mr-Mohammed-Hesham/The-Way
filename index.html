@@ -134,10 +134,7 @@
           navigator.serviceWorker
             .register(swPath)
             .then((registration) => {
-              console.log(
-                'The Way ServiceWorker registered successfully:',
-                registration.scope
-              );
+              registration.update().catch(() => {});
             })
             .catch(() => {
               navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -187,8 +184,8 @@
         }
       }
     </style>
-    <script type="module" crossorigin src="/The-Way/assets/index-CTk3kT_F.js"></script>
-    <link rel="stylesheet" crossorigin href="/The-Way/assets/index-DWZgW8_F.css">
+    <script type="module" crossorigin src="/The-Way/assets/index-DAhK0M-E.js"></script>
+    <link rel="stylesheet" crossorigin href="/The-Way/assets/index-Bi1U5Typ.css">
   </head>
 
   <body
@@ -198,4 +195,3 @@
 
   </body>
 </html>
-```

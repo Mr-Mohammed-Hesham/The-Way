@@ -1,8 +1,6 @@
 // The Way Training Center - Progressive Web App Service Worker
-const CACHE_NAME = 'the-way-cache-v2';
+const CACHE_NAME = 'the-way-cache-v3';
 const STATIC_ASSETS = [
-  './',
-  './index.html',
   './manifest.json',
   './logo.png',
   './logo.svg',
@@ -36,14 +34,25 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  
-  // Ignore chrome-extension and non-http schemes
-  if (!event.request.url.startsWith('http')) return;
+
+  const url = event.request.url;
+  if (!url.startsWith('http')) return;
+
+  // Never cache Vite dev modules, HMR endpoints, or Firebase API calls
+  if (
+    url.includes('/src/') ||
+    url.includes('/node_modules/') ||
+    url.includes('/@vite/') ||
+    url.includes('/@fs/') ||
+    url.includes('googleapis.com') ||
+    url.includes('firebaseio.com')
+  ) {
+    return;
+  }
 
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Cache successful GET responses for assets
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
